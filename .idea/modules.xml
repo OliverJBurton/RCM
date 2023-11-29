@@ -4,6 +4,7 @@
     <modules>
       <module fileurl="file://$PROJECT_DIR$/../HMBIL/.idea/HMBIL.iml" filepath="$PROJECT_DIR$/../HMBIL/.idea/HMBIL.iml" />
       <module fileurl="file://$PROJECT_DIR$/../Oppenheimer/.idea/Oppenheimer.iml" filepath="$PROJECT_DIR$/../Oppenheimer/.idea/Oppenheimer.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../PyExCorr/.idea/PyExCorr.iml" filepath="$PROJECT_DIR$/../PyExCorr/.idea/PyExCorr.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/RCM.iml" filepath="$PROJECT_DIR$/.idea/RCM.iml" />
     </modules>
   </component>

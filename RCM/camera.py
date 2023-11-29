@@ -34,7 +34,7 @@ class Camera_HS():
         self.min_val = 0
 
         # Set an initial exposure time in milliseconds
-        self.exposure = 50 #ms
+        self.exposure = 15 #ms
 
         # Setting the camera's exposure to the initial exposure time
         self.cam.set_exposure(self.exposure)
@@ -164,12 +164,12 @@ def live_time_lapse():
     folder = r'C:\Users\ob303\OneDrive - University of Cambridge\Projects_current\Experimental\2023_OxideNanowires\LinkhamStageTest_640nmW'
 
     cam = Camera_HS()
-    t0 = time.clock()
+    t0 = time.time()
 
     # Capturing images with multiple exposures and storing the mean image in 'capture'
     for i in range(1):
         capture = cam.single_exposure(exposure_time=0.3)
-        ts = time.clock() - t0
+        ts = time.time() - t0
         fn = os.path.join(folder,'image_cap_%04d'%(i) + str(ts) + 'img.png')
         plt.imsave(fn,capture)
 

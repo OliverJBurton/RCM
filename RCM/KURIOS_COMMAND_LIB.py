@@ -2,7 +2,7 @@ from ctypes import *
 
 #region import dll functions
 
-KuriosLib = cdll.LoadLibrary(r"\\ifs.eng.cam.ac.uk\users\ob303\Documents\GitHub\RCM\src\KURIOS_COMMAND_LIB_Win64.dll")
+KuriosLib = cdll.LoadLibrary(r"C:\Program Files (x86)\Thorlabs\Kurios\Sample\Thorlabs_Kurios_C++SDK\KURIOS_COMMAND_LIB_Win64.dll")
 cmdOpen = KuriosLib.common_Open
 cmdOpen.restype=c_int
 cmdOpen.argtypes=[c_char_p, c_int, c_int]
