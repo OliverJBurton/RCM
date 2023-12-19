@@ -115,13 +115,15 @@ class Camera_BA():
 
     def single_exposure(self,exposure_time = 1):
         self.cam.set_exposure(exposure_time)
-        return self.cam.snap().astype(np.uint16)
+        plt.imshow(self.cam.grab(1))
+        plt.show()
+        return self.cam.snap()
 
     def average_exposure(self,exposure_time=1,averages=5):
         self.cam.set_exposure(exposure_time)
         exps = []
         for i in range(averages):
-            exps.append(self.cam.snap().astype(np.uint16))
+            exps.append(self.cam.snap())
         return np.mean(exps,axis=0)
 
     # Method for acquiring images with multiple exposure times, ranging from 'start_exposure' (in seconds) with 'doubles' doublings.
