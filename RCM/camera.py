@@ -182,5 +182,7 @@ def live_time_lapse():
 # This condition checks if the script is being run directly or imported. If run directly, the code block under this condition will run.
 if __name__ == '__main__':
     # Creating an instance of Camera
-    live_time_lapse()
-
+    cam = Camera_HS()
+    arr = cam.single_exposure(10e-3)
+    plt.imshow(arr)
+    plt.show()
