@@ -113,11 +113,9 @@ class Camera_BA():
         # Setting the camera's exposure to the initial exposure time
         self.cam.set_exposure(self.exposure)
 
-    def single_exposure(self,exposure_time = 1):
+    def single_exposure(self,exposure_time = 1,timeout=500e-3):
         self.cam.set_exposure(exposure_time)
-        plt.imshow(self.cam.grab(1))
-        plt.show()
-        return self.cam.snap()
+        return self.cam.snap(timeout=timeout)
 
     def average_exposure(self,exposure_time=1,averages=5):
         self.cam.set_exposure(exposure_time)

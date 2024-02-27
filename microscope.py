@@ -47,21 +47,17 @@ class FullControlMicroscope:
         self.lcf.close()
 
     def aquire_HS_datacube(self,wavelength_range=[420,730],step_size=5):
-        wavelengths = np.arange(wavelength_range[0],wavelength_range[1],step_size)
+        wavelengths = np.arange(wavelength_range[0], wavelength_range[1], step_size)
 
-        folder = r'C:\Users\ob303\OneDrive - University of Cambridge\Projects_current\Experimental\2023_HfSe2_Sunny\Spectral_HfSe2'
-        t0 = time.time()
+        folder = r'C:\Users\ob303\OneDrive - University of Cambridge\Projects_current\Experimental\2024_Oana_Bluephase\Bluephase_BP5_001'
 
         # Capturing images with multiple exposures and storing the mean image in 'capture'
-        for i in range(1000):
-            ts = time.time() - t0
-            for wl in np.linspace(550,730,50):
-                self.lcf.set_wavelength(int(wl))
-                time.sleep(3e-2)
-                img = self.chs.single_exposure(exposure_time=25e-3)
-                fn = os.path.join(folder, 'image_cap_%04d' % (i) + str(ts) + '_' + str(wl) + 'img.png')
-                imageio.imwrite(fn, img.astype(np.uint16))
-            time.sleep(300)
+        for wl in np.linspace(420, 500, 80):
+            self.lcf.set_wavelength(int(wl))
+            time.sleep(3e-2)
+            img = self.chs.single_exposure(exposure_time=120e-3)
+            fn = os.path.join(folder, 'image_cap_%04d' % (i) + '_' + str(wl) + 'img.png')
+            imageio.imwrite(fn, img.astype(np.uint16))
 
     def aquire_HS_reference(self,wavelength_range=[420,730],step_size=5):
         pass
@@ -92,7 +88,6 @@ if __name__ == '__main__':
         plt.imshow(img)
         plt.show()
 
-    folder = r'C:\Users\ob303\OneDrive - University of Cambridge\Projects_current\Experimental\2023_HfSe2_Sunny\Spectral_HfSe2'
     msc = FullControlMicroscope()
     #msc.aquire_TL_time_series(time_increment=1,total_time=2,folder=folder,exposure_time=0.654e-3)
     msc.aquire_HS_datacube()
