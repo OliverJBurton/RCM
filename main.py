@@ -57,9 +57,6 @@ class FullControlMicroscope:
         :param save:
         :return:
         '''
-        wavelengths = np.arange(wavelength_range[0], wavelength_range[1], step_size)
-
-        folder = r'C:\Users\ob303\OneDrive - University of Cambridge\Projects_current\Experimental\2024_Oana_Bluephase\Bluephase_BP5_001'
 
         if exposuretime == []:
             exposure_time = self.chs.exposure
@@ -96,13 +93,17 @@ class FullControlMicroscope:
         while ti - t0 < total_time:
             time.sleep(1e-3)
             ti = time.time()
-            if tx-ti > time_increment:
+
+            if ti-tx > time_increment:
                 wavelengths, hypercube = self.aquire_HS_datacube(wavelength_range=wavelength_range, no_spectra=no_spectra, exposuretime=exposuretime,
                               save_folder=[])
+                print(wavelengths)
                 for ii, wl in enumerate(wavelengths):
                     fn = os.path.join(save_folder, 'image_cap_%04d' % (n) + '_' + str(wl) + '_' + str(ti - t0) + '_' + 'img.png')
+                    print(fn)
                     imageio.imwrite(fn, hypercube[ii].astype(np.uint16))
                 n += 1
+                tx = time.time()
 
 
 if __name__ == '__main__':
@@ -114,5 +115,10 @@ if __name__ == '__main__':
 
     msc = FullControlMicroscope()
     # msc.aquire_TL_time_series(time_increment=1,total_time=2,folder=folder,exposure_time=0.654e-3)
-    msc.aquire_HS_datacube()
+    msc.aquire_HS_time_series(wavelength_range=[500,730],
+                              exposuretime=12,
+                              no_spectra=5,
+                              save_folder=r'D:\2023_HfSe2_Sunny\test',
+                              time_increment=10,
+                              total_time=60)
     msc.close()
