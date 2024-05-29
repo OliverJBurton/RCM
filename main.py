@@ -59,7 +59,6 @@ class FullControlMicroscope:
         '''
         wavelengths = np.arange(wavelength_range[0], wavelength_range[1], step_size)
 
-        folder = r'C:\Users\ob303\OneDrive - University of Cambridge\Projects_current\Experimental\2024_Oana_Bluephase\Bluephase_BP5_001'
 
         if exposuretime == []:
             exposure_time = self.chs.exposure
