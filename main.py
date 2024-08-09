@@ -55,7 +55,7 @@ class FullControlMicroscope:
             fn = os.path.join(save_folder, image_name)
             imageio.imwrite(fn, hypercube[ii].astype(np.uint16))     
 
-    def aquire_HS_datacube(self, wavelength_range=[420, 730], no_spectra=5, exposuretime=0,save_folder=""):
+    def aquire_HS_datacube(self, wavelength_range=[420, 730], no_spectra=5, exposuretime=0, save_folder=""):
         '''
 
         :param wavelength_range: range in nm of wavelengths
@@ -68,8 +68,6 @@ class FullControlMicroscope:
 
         if exposuretime == 0:
             exposuretime = self.chs.exposure
-        else:
-            exposuretime = exposuretime
 
         # Capturing images with multiple exposures and storing the mean image in 'capture'
         wavelengths = np.linspace(wavelength_range[0], wavelength_range[1], no_spectra)
@@ -171,5 +169,5 @@ if __name__ == '__main__':
 
     msc = FullControlMicroscope()
     # msc.aquire_TL_time_series(time_increment=1,total_time=2,folder=folder,exposure_time=0.654e-3)
-    msc.aquire_HS_datacube()
+    msc.aquire_HS_datacube(exposuretime=1, save_folder="C:\\Users\\whw29\\Desktop\\Images")
     msc.close()
