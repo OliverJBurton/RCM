@@ -49,8 +49,9 @@ class FullControlMicroscope:
         self.sta.close()
         self.lcf.close()
 
-    def save_image(self, wavelengths, save_folder, image_name, hypercube):
+    def save_image(self, wavelengths, hypercube, save_folder, data):
         for ii, wl in enumerate(wavelengths):
+            image_name = 'image_cap_' + str(ii) + '_' + str(wl) + '_' + '_'.join(str(e) for e in data) + '_img.png'
             fn = os.path.join(save_folder, image_name)
             imageio.imwrite(fn, hypercube[ii].astype(np.uint16))     
 
@@ -66,9 +67,9 @@ class FullControlMicroscope:
         '''
 
         if exposuretime == 0:
-            exposure_time = self.chs.exposure
+            exposuretime = self.chs.exposure
         else:
-            exposure_time = exposuretime
+            exposuretime = exposuretime
 
         # Capturing images with multiple exposures and storing the mean image in 'capture'
         wavelengths = np.linspace(wavelength_range[0], wavelength_range[1], no_spectra)
@@ -82,7 +83,7 @@ class FullControlMicroscope:
         if save_folder == "":
             return wavelengths, hypercube
         else:
-            self.save_image(wavelengths, save_folder, 'image_cap_%04d' % (i) + '_' + str(wl) + '_img.png', hypercube)
+            self.save_image(wavelengths, hypercube, save_folder, [])
 
     def aquire_HS_time_series(self, wavelength_range=[420, 730], no_spectra=5, exposuretime=0,
                               save_folder="", time_increment=10, total_time=7200):
@@ -92,13 +93,11 @@ class FullControlMicroscope:
         :return:
         '''
         t0 = time.time()
-        n = 0
         while time.time() - t0 < total_time:
             time.sleep(time_increment)
             wavelengths, hypercube = self.aquire_HS_datacube(wavelength_range=wavelength_range, no_spectra=no_spectra, exposuretime=exposuretime,
                             save_folder=[])
-            self.save_image(wavelengths, save_folder, 'image_cap_%04d' % (n) + '_' + str(wl) + '_' + str(time.time() - t0) + '_' + 'img.png', hypercube)
-            n += 1
+            self.save_image(wavelengths, hypercube, save_folder, [time.time() - t0])            
 
     def mapping(self, channels=[0,1], sample_dim=[], sample_no_per_channel=[], wavelength_range=[420, 730], no_spectra=5, save_folder="", RGB_img_too=False, exposure_time=0):
         """
@@ -122,18 +121,8 @@ class FullControlMicroscope:
         positions_list = [[],[]]
         if sample_dim != [] and sample_no_per_channel != []:
             for c in channels[:2]:
-
-                # Set start position of camera to be middle of first box and initialise sample count
-                position = -self.sta._position_limit_um[c] + sample_dim[c]/2
-                positions_list.append(position)
-                sample_no = 0
-
-                #Ensure position is within limits or number of samples has yet to exceed limits
-                while sample_dim[c] + position < self.sta._position_limit_um[c] - sample_dim[c]/2 or sample_no < sample_no_per_channel[c]:
-                    sample_no += 1
-                    # Determine next position and add to position list
-                    position+=sample_dim[c]
-                    positions_list[c].append(position)
+                # Starting from lower limit, generate required number of boxes unless coordinate of the box gets too close to upper limit
+                positions_list[c] = [-self.sta._position_limit_um[c]+sample_dim[c]*(i+1/2) for i in range(sample_no_per_channel[c]) if -self.sta._position_limit_um[c]+sample_dim[c]*(i+1/2) <= self.sta._position_limit_um[c]-sample_dim[c]]
         elif sample_dim != []:
             for c in channels[:2]:
                 # Positions of stage, camera must be centered on the box
@@ -164,12 +153,11 @@ class FullControlMicroscope:
 
                     wavelengths, hypercube = spectral.get()
                     rgbImage = rgb.get()
-                    self.save_image(wavelengths, save_folder, 'HSimage_cap_%04d' % (i) + (j) + '_' + str(wl) + '_' + 'img.png', hypercube)
+                    self.save_image(wavelengths, hypercube, save_folder, [i, j])
                     imageio.imwrite(fn, rgbImage)
 
-
                 wavelengths, hypercube = self.aquire_HS_datacube(wavelength_range, no_spectra)
-                self.save_image(wavelengths, save_folder, 'image_cap_%04d' % (i) + (j) + '_' + str(wl) + '_' + 'img.png', hypercube)
+                self.save_image(wavelengths, hypercube, save_folder, [i, j])
 
 
 
