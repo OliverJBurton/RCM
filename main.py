@@ -52,10 +52,11 @@ class FullControlMicroscope:
     def save_image(self, wavelengths, hypercube, save_folder, data):
         for ii, wl in enumerate(wavelengths):
             image_name = 'image_cap_' + str(ii) + '_' + str(wl) + '_' + '_'.join(str(e) for e in data) + '_img.png'
+            print(image_name)
             fn = os.path.join(save_folder, image_name)
             imageio.imwrite(fn, hypercube[ii].astype(np.uint16))     
 
-    def aquire_HS_datacube(self, wavelength_range=[420, 730], no_spectra=5, exposuretime=0, save_folder=""):
+    def aquire_HS_datacube(self, wavelength_range=[420, 730], no_spectra=5, exposuretime=0.0, save_folder=""):
         '''
 
         :param wavelength_range: range in nm of wavelengths
@@ -66,8 +67,10 @@ class FullControlMicroscope:
         :return hypercube: list of 3D images
         '''
 
-        if exposuretime == 0:
-            exposuretime = self.chs.exposure
+        if exposuretime == 0.0:
+            exposure_time = self.chs.exposure
+        else:
+            exposure_time = exposuretime
 
         # Capturing images with multiple exposures and storing the mean image in 'capture'
         wavelengths = np.linspace(wavelength_range[0], wavelength_range[1], no_spectra)
@@ -83,7 +86,7 @@ class FullControlMicroscope:
         else:
             self.save_image(wavelengths, hypercube, save_folder, [])
 
-    def aquire_HS_time_series(self, wavelength_range=[420, 730], no_spectra=5, exposuretime=0,
+    def aquire_HS_time_series(self, wavelength_range=[420, 730], no_spectra=5, exposuretime=0.0,
                               save_folder="", time_increment=10, total_time=7200):
         '''
         :param time_increment:
@@ -93,8 +96,7 @@ class FullControlMicroscope:
         t0 = time.time()
         while time.time() - t0 < total_time:
             time.sleep(time_increment)
-            wavelengths, hypercube = self.aquire_HS_datacube(wavelength_range=wavelength_range, no_spectra=no_spectra, exposuretime=exposuretime,
-                            save_folder=[])
+            wavelengths, hypercube = self.aquire_HS_datacube(wavelength_range=wavelength_range, no_spectra=no_spectra, exposuretime=exposuretime)
             self.save_image(wavelengths, hypercube, save_folder, [time.time() - t0])            
 
     def mapping(self, channels=[0,1], sample_dim=[], sample_no_per_channel=[], wavelength_range=[420, 730], no_spectra=5, save_folder="", RGB_img_too=False, exposure_time=0):
@@ -110,10 +112,10 @@ class FullControlMicroscope:
         """
 
         # Validation checks
-        assert channel in self.sta.channels, ("%s is not in list of channels" % (channel))
-        assert (sample_dim[0] != 0 and sample_dim[1] != 0), ("Dimensions of sample cannot be 0")
-        assert (sample_no_per_channel[0] > 0 and sample_dim[1] > 0), ("Number of samples along each channel cannot be 0 or negative")
-        assert (type(sample_no_per_channel[0]) == type(1) and type(sample_no_per_channel[1]) == type(1)), ("Number of samples along each channel must be an integer")
+        assert channels[0] == 0 and channels[1] == 1, ("Invalid channel")
+        # assert (sample_dim[0] != 0 and sample_dim[1] != 0), ("Dimensions of sample cannot be 0")
+        # assert (sample_no_per_channel[0] > 0 and sample_dim[1] > 0), ("Number of samples along each channel cannot be 0 or negative")
+        # assert (type(sample_no_per_channel[0]) == type(1) and type(sample_no_per_channel[1]) == type(1)), ("Number of samples along each channel must be an integer")
 
         # Either create list of locations based off size of each sample or the number of samples or both
         positions_list = [[],[]]
@@ -135,6 +137,8 @@ class FullControlMicroscope:
         else:
             print("Enter valid parameters")
             return None
+
+        print(positions_list)
 
         # iterate throughout all possible boxes
         for i in position1_list:
@@ -168,6 +172,14 @@ if __name__ == '__main__':
         plt.show()
 
     msc = FullControlMicroscope()
-    # msc.aquire_TL_time_series(time_increment=1,total_time=2,folder=folder,exposure_time=0.654e-3)
-    msc.aquire_HS_datacube(exposuretime=1, save_folder="C:\\Users\\whw29\\Desktop\\Images")
-    msc.close()
+    msc.sta.move_um(channel=0, move_um=0, relative=0)
+    msc.sta.move_um(channel=1, move_um=0, relative=0)
+    msc.sta.move_um(channel=2, move_um=0, relative=0)
+
+    msc.mapping(sample_dim=[50, 50])
+
+    # # msc.aquire_TL_time_series(time_increment=1,total_time=2,folder=folder,exposure_time=0.654e-3)
+    # msc.aquire_HS_datacube(exposuretime=0.654e-3, save_folder="C:\\Users\\whw29\\Desktop\\Images")
+    # msc.close
+
+    # msc.sta._legalize_move_um(1, 0.01, False)

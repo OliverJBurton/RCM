@@ -203,45 +203,60 @@ if __name__ == '__main__':
                             reverse=(False, False, True),
                             verbose=True,
                             very_verbose=False)
-
-    # re-set zero:
-    ##    controller.move_um(channel, 10)
-    ##    controller._set_encoder_counts_to_zero(channel)
-    ##    controller.move_um(channel, 0)
-
-    print('\n# Position attribute = %0.2f' % controller.position_um[channel])
-
-    print('\n# Home:')
-    controller.move_um(channel, 0, relative=False)
-
-    print('\n# Some relative moves:')
-    for moves in range(3):
-        controller.move_um(channel, 10)
-    for moves in range(3):
-        controller.move_um(channel, -10)
-
-    print('\n# Legalized move:')
-    legal_move_um = controller._legalize_move_um(channel, 100, relative=True)
-    controller.move_um(channel, legal_move_um)
-
-    print('\n# Some random absolute moves:')
-    from random import randrange
-
-    for moves in range(3):
-        random_move_um = randrange(-100, 100)
-        move = controller.move_um(channel, random_move_um, relative=False)
-
-    print('\n# Non-blocking move:')
-    controller.move_um(channel, 200, block=False)
-    controller.move_um(channel, 100, block=False)
-    print('(immediate follow up call forces finish on pending move)')
-    print('doing something else')
-    controller._finish_move(channel)
-
-    print('\n# Encoder tolerance check:')
-    # hangs indefinetly if self._encoder_counts_tol[channel] < 1 count
-    for i in range(3):
-        controller.move_um(channel, 0, relative=False)
-        controller.move_um(channel, 0.2116667, relative=False)
+    print("%s: position_um:" % controller.name, controller.position_um)
+    controller.move_um(channel=0,
+                       move_um=0,
+                       relative=0)
+    print("%s: position_um:" % controller.name, controller.position_um)
 
     controller.close()
+
+    if 0:
+        channel = 0
+        controller = Controller(which_port='COM4',
+                                stages=('ZFM2030', 'ZFM2030', 'ZFM2030'),
+                                reverse=(False, False, True),
+                                verbose=True,
+                                very_verbose=False)
+
+        # re-set zero:
+        ##    controller.move_um(channel, 10)
+        ##    controller._set_encoder_counts_to_zero(channel)
+        ##    controller.move_um(channel, 0)
+
+        print('\n# Position attribute = %0.2f' % controller.position_um[channel])
+
+        print('\n# Home:')
+        controller.move_um(channel, 0, relative=False)
+
+        print('\n# Some relative moves:')
+        for moves in range(3):
+            controller.move_um(channel, 10)
+        for moves in range(3):
+            controller.move_um(channel, -10)
+
+        print('\n# Legalized move:')
+        legal_move_um = controller._legalize_move_um(channel, 100, relative=True)
+        controller.move_um(channel, legal_move_um)
+
+        print('\n# Some random absolute moves:')
+        from random import randrange
+
+        for moves in range(3):
+            random_move_um = randrange(-100, 100)
+            move = controller.move_um(channel, random_move_um, relative=False)
+
+        print('\n# Non-blocking move:')
+        controller.move_um(channel, 200, block=False)
+        controller.move_um(channel, 100, block=False)
+        print('(immediate follow up call forces finish on pending move)')
+        print('doing something else')
+        controller._finish_move(channel)
+
+        print('\n# Encoder tolerance check:')
+        # hangs indefinetly if self._encoder_counts_tol[channel] < 1 count
+        for i in range(3):
+            controller.move_um(channel, 0, relative=False)
+            controller.move_um(channel, 0.2116667, relative=False)
+
+        controller.close()
