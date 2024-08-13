@@ -129,11 +129,11 @@ class FullControlMicroscope:
                 positions_list[c] = np.arange(-self.sta._position_limit_um[c]+sample_dim[c]/2, self.sta._position_limit_um[c]-sample_dim[c]/2, sample_dim[c])
         elif sample_no_per_channel != []:
             for c in channels[:2]:
-                # Determine dimensions of each sample
-                shift = 2*self.sta._position_limit_um[c]/sample_no_per_channel[c]
+                # Determine shift required to get from side of each box to the center of each box
+                shift = self.sta._position_limit_um[c]/sample_no_per_channel[c]
 
                 # Determine position of the corner of each box, add shift to move position to center of box
-                positions_list[c] = np.linspace(-self.sta._position_limit_um[c], self.sta._position_limit_um[c], sample_no_per_channel[c], endpoint=False) + shift1
+                positions_list[c] = np.linspace(-self.sta._position_limit_um[c], self.sta._position_limit_um[c], sample_no_per_channel[c], endpoint=False) + shift
         else:
             print("Enter valid parameters")
             return None
@@ -141,16 +141,16 @@ class FullControlMicroscope:
         print(positions_list)
 
         # iterate throughout all possible boxes
-        for i in position1_list:
+        for i in positions_list[0]:
             self.sta.move_um(channels[0], i, relative=False)
-            for j in position2_list:
+            for j in positions_list[1]:
                 self.sta.move_um(channels[1], j, relative=False)
 
                 # Use camera to take a snapshot of each box
 
                 if RGB_img_too:
                     pool = Pool()
-                    spectral = pool.apply_async(self.aquire_HS_datacube, [wavelength_range, no_spectra])
+                    spectral = pool.apply_async(self.aquire_HS_datacube, [wavelength_range, no_spectra, exposure_time])
                     rgb = pool.apply_async(self.cba.average_exposure, [exposure_time])
 
                     wavelengths, hypercube = spectral.get()
@@ -158,7 +158,7 @@ class FullControlMicroscope:
                     self.save_image(wavelengths, hypercube, save_folder, [i, j])
                     imageio.imwrite(fn, rgbImage)
 
-                wavelengths, hypercube = self.aquire_HS_datacube(wavelength_range, no_spectra)
+                wavelengths, hypercube = self.aquire_HS_datacube(wavelength_range, no_spectra, exposure_time)
                 self.save_image(wavelengths, hypercube, save_folder, [i, j])
 
 
@@ -176,10 +176,8 @@ if __name__ == '__main__':
     msc.sta.move_um(channel=1, move_um=0, relative=0)
     msc.sta.move_um(channel=2, move_um=0, relative=0)
 
-    msc.mapping(sample_dim=[50, 50])
+    msc.mapping(sample_dim=[50, 50], sample_no_per_channel=[1, 1], exposure_time=0.645e-3, save_folder="C:\\Users\\whw29\\Desktop\\Images", RGB_img_too=True)
 
     # # msc.aquire_TL_time_series(time_increment=1,total_time=2,folder=folder,exposure_time=0.654e-3)
     # msc.aquire_HS_datacube(exposuretime=0.654e-3, save_folder="C:\\Users\\whw29\\Desktop\\Images")
-    # msc.close
-
-    # msc.sta._legalize_move_um(1, 0.01, False)
+    msc.close()
