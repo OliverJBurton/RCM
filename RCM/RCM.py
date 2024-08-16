@@ -49,7 +49,7 @@ class FullControlMicroscope:
                 break
             elif response == "Y":
                 for channel in self.sta.channels:
-                    self.sta._set_encoder_counts_to_zero(channel)
+                    self.sta.set_encoder_counts_to_zero(channel)
                 print("Completed recalibration")
                 break
 
@@ -86,7 +86,7 @@ class FullControlMicroscope:
         :return: (list of wavelengths in nm, list of 3D images)
         '''
 
-        # Capturing images with multiple exposures and storing the mean image in 'capture'
+        # Create list of wavelengths
         wavelengths = np.linspace(self.wavelength_range[0], self.wavelength_range[1], self.no_spectra)
         hypercube = []
 

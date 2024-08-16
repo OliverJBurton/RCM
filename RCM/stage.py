@@ -111,7 +111,7 @@ class Controller:
             channel, encoder_counts)
         return encoder_counts
 
-    def _set_encoder_counts_to_zero(self, channel):
+    def set_encoder_counts_to_zero(self, channel):
         # WARNING: this device adaptor assumes the stage encoder will be set
         # to zero at the centre of it's range for +- stage_position_limit_um checks
         if self.verbose:
@@ -221,7 +221,7 @@ if __name__ == '__main__':
 
         # re-set zero:
         ##    controller.move_um(channel, 10)
-        ##    controller._set_encoder_counts_to_zero(channel)
+        ##    controller.set_encoder_counts_to_zero(channel)
         ##    controller.move_um(channel, 0)
 
         print('\n# Position attribute = %0.2f' % controller.position_um[channel])

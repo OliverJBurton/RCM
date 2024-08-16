@@ -35,7 +35,7 @@ def CommonFunc(serialNumber):
     # or check by "KuriosIsOpen(devs[0])"
     if (hdl < 0):
         print("Connect ", serialNumber, "fail")
-        return -1;
+        return -1
     else:
         print("Connect ", serialNumber, "successful")
 

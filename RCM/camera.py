@@ -160,13 +160,13 @@ class Camera_BA():
         self.cam.close()
 
 
-def live_time_lapse():
-    folder = r'C:\Users\ob303\OneDrive - University of Cambridge\Projects_current\Experimental\2023_OxideNanowires\LinkhamStageTest_640nmW'
+def live_time_lapse(folderName):
+    #folder = r'C:\Users\ob303\OneDrive - University of Cambridge\Projects_current\Experimental\2023_OxideNanowires\LinkhamStageTest_640nmW'
 
     cam = Camera_HS()
     t0 = time.time()
 
-    # Capturing images with multiple exposures and storing the mean image in 'capture'
+    # Capturing images with single exposures and storing the mean image in 'capture'
     for i in range(1):
         capture = cam.single_exposure(exposure_time=0.3)
         ts = time.time() - t0
