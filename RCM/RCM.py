@@ -7,6 +7,7 @@ from camera import Camera_BA #RGB
 from light import DC2200
 from stage import Controller
 from tunablefilter import TunableFilter
+from OpticalPowerMeter import PM100
 import time
 import os
 import cv2
@@ -19,6 +20,8 @@ class FullControlMicroscope:
         self.no_spectra = no_spectra
         self.exposure_time = exposure_time
         self.save_folder = save_folder
+        self.intensity_loss_pixel_matrix = []
+        self.greyscale_intensity_list = []
 
         # initialising all sections:
         self.chs = Camera_HS()
@@ -31,6 +34,8 @@ class FullControlMicroscope:
         print('LC connecting...')
         self.lcf.open()
         print('LC connected')
+        self.power_meter = PM100()
+        print("Power meter connected")
 
         self.sta = Controller(which_port='COM4',
                               stages=('ZFM2030', 'ZFM2030', 'ZFM2030'),
@@ -63,6 +68,55 @@ class FullControlMicroscope:
         self.led.close()
         self.sta.close()
         self.lcf.close()
+
+    def obtain_intensity_pixel_matrix(self, xNum=20, yNum=20):
+        '''
+        Determines how each block of pixel on the screen affects the light intensity incident on the sample. Note the canvas width and height should be multiples of xNum and yNum respectively.
+        Sets the parameter intensity_loss_pixel_matrix
+
+        :param xNum: splits the width of the canvas into xNum blocks
+        :param yNum: splits the height of the canvas into yNum blocks
+        '''
+
+        # Add something to open and move inkscape to the 3rd screen or tell user to do it
+        # https://github.com/spakin/SimpInkScr/wiki/Modifying-existing-objects
+
+        x_coords = np.linspace(0, canvas.width, xNum)
+        y_coords = np.linspace(0, canvas.height, yNum)
+        intensity_readings = [[0 for i in range(yNum)] for j in range[xNum]]
+
+        full_brightness_reading = self.power_meter.read()
+
+        for x_coord in x_coords:
+            for y_coord in y_coords:
+                rect((x_coord, y_coord), (x_coord+x_coords[0], y_coord+y_coords[0]), fill="#000000")
+                intensity_readings[x_coord][y_coord] = full_brightness_reading - self.power_meter.read()
+        
+        self.intensity_loss_pixel_matrix = intensity_readings
+
+    def greyscale_intensity_relationship(self, step=5):
+        '''
+        Determines the relationship between the greyscale of the image and light intensity
+        Sets the parameter greyscale_intensity_list and plots a graph of light intensity vs greyscale
+        :param steps: size of the interval between greyscale values
+        '''
+
+        # Return a fitted curve, need to check which equation to use first
+        # Could use np.poly1d(np.polyfit(x, y))
+        
+        rect((0, 0), (canvas.width, canvas.height), fill="#ffffff")
+        greyscale_intensity_readings = []
+
+        for i in range(0, 255, step):
+            greyscale = "# + {:02x}".format(i)*3
+            greyscale_intensity_readings.append([greyscale, self.power_meter.read()])
+        
+        n_readings = np.array(greyscale_intensity_readings)
+        plt.plot(n_readings[:,0], n_readings[:,1])
+        plt.xlabel("Greyscale")
+        plt.ylabel("Light intensity (W/m^2)")
+        plt.show()
+        self.greyscale_intensity_list = greyscale_intensity_readings
 
     def save_image(self, wavelengths, hypercube, indices):
         '''
