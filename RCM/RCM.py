@@ -103,8 +103,9 @@ class FullControlMicroscope:
 
         # Return a fitted curve, need to check which equation to use first
         # Could use np.poly1d(np.polyfit(x, y))
+        # Need inkscape to be in full screen and detoggle toolbars: ctrl F11 or shift F11
         
-        rect((0, 0), (canvas.width, canvas.height), fill="#ffffff")
+        rect((0, 0), (canvas.width, canvas.height), fill="#000000")
         greyscale_intensity_readings = []
 
         for i in range(0, 255, step):
