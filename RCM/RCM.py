@@ -7,12 +7,11 @@ from camera import Camera_BA #RGB
 from light import DC2200
 from stage import Controller
 from tunablefilter import TunableFilter
-from OpticalPowerMeter import PM100
+from GUI import experimentGUI
 import time
 import os
 import cv2
 import imageio
-
 
 class FullControlMicroscope:
     def __init__(self, wavelength_range=[420, 730], no_spectra=5, exposure_time=0.0, save_folder=""):
@@ -34,8 +33,6 @@ class FullControlMicroscope:
         print('LC connecting...')
         self.lcf.open()
         print('LC connected')
-        self.power_meter = PM100()
-        print("Power meter connected")
 
         self.sta = Controller(which_port='COM4',
                               stages=('ZFM2030', 'ZFM2030', 'ZFM2030'),
@@ -104,20 +101,21 @@ class FullControlMicroscope:
         # Return a fitted curve, need to check which equation to use first
         # Could use np.poly1d(np.polyfit(x, y))
         # Need inkscape to be in full screen and detoggle toolbars: ctrl F11 or shift F11
-        
-        rect((0, 0), (canvas.width, canvas.height), fill="#000000")
-        greyscale_intensity_readings = []
 
-        for i in range(0, 255, step):
-            greyscale = "# + {:02x}".format(i)*3
-            greyscale_intensity_readings.append([greyscale, self.power_meter.read()])
+        # Initialise window with white background
+        screen = experimentGUI(step=step)
+
+        # Prompts user to move GUI to projected screen, then begins experiment
+        screen.greyscale_intensity_experiment_thread.start()
+
+        screen.mainloop()
         
-        n_readings = np.array(greyscale_intensity_readings)
+        n_readings = np.array(screen.greyscale_intensity_readings)
         plt.plot(n_readings[:,0], n_readings[:,1])
         plt.xlabel("Greyscale")
         plt.ylabel("Light intensity (W/m^2)")
         plt.show()
-        self.greyscale_intensity_list = greyscale_intensity_readings
+        self.greyscale_intensity_list = screen.greyscale_intensity_readings
 
     def save_image(self, wavelengths, hypercube, indices):
         '''
