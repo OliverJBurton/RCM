@@ -78,16 +78,8 @@ class FullControlMicroscope:
         # Add something to open and move inkscape to the 3rd screen or tell user to do it
         # https://github.com/spakin/SimpInkScr/wiki/Modifying-existing-objects
 
-        x_coords = np.linspace(0, canvas.width, xNum)
-        y_coords = np.linspace(0, canvas.height, yNum)
-        intensity_readings = [[0 for i in range(yNum)] for j in range[xNum]]
+        
 
-        full_brightness_reading = self.power_meter.read()
-
-        for x_coord in x_coords:
-            for y_coord in y_coords:
-                rect((x_coord, y_coord), (x_coord+x_coords[0], y_coord+y_coords[0]), fill="#000000")
-                intensity_readings[x_coord][y_coord] = full_brightness_reading - self.power_meter.read()
         
         self.intensity_loss_pixel_matrix = intensity_readings
 
