@@ -7,7 +7,7 @@ from camera import Camera_BA #RGB
 from light import DC2200
 from stage import Controller
 from tunablefilter import TunableFilter
-from GUI import experimentGUI
+from GUI import experimentGUI, ImageDisplayGUI
 import time
 import os
 import cv2
@@ -21,6 +21,7 @@ class FullControlMicroscope:
         self.save_folder = save_folder
         self.intensity_loss_pixel_matrix = []
         self.greyscale_intensity_list = []
+        self.image_path_list = []
 
         # initialising all sections:
         self.chs = Camera_HS()
@@ -78,10 +79,11 @@ class FullControlMicroscope:
         # Add something to open and move inkscape to the 3rd screen or tell user to do it
         # https://github.com/spakin/SimpInkScr/wiki/Modifying-existing-objects
 
+        experiment_screen = ExperimentGUI(xNum=xNum, yNum=yNum)
+        experiment_screen.pixel_intensity_experiment_thread.start()
+        experiment_screen.mainloop()
         
-
-        
-        self.intensity_loss_pixel_matrix = intensity_readings
+        self.intensity_loss_pixel_matrix = experiment_screen.intensity_readings
 
     def greyscale_intensity_relationship(self, step=5):
         '''
@@ -92,22 +94,22 @@ class FullControlMicroscope:
 
         # Return a fitted curve, need to check which equation to use first
         # Could use np.poly1d(np.polyfit(x, y))
-        # Need inkscape to be in full screen and detoggle toolbars: ctrl F11 or shift F11
 
         # Initialise window with white background
-        screen = experimentGUI(step=step)
+        experiment_screen = ExperimentGUI(step=step)
 
         # Prompts user to move GUI to projected screen, then begins experiment
-        screen.greyscale_intensity_experiment_thread.start()
+        experiment_screen.greyscale_intensity_experiment_thread.start()
 
-        screen.mainloop()
+        experiment_screen.mainloop()
+
+        self.greyscale_intensity_list = experiment_screen.greyscale_intensity_readings
         
-        n_readings = np.array(screen.greyscale_intensity_readings)
+        n_readings = np.array(experiment_screen.greyscale_intensity_readings)
         plt.plot(n_readings[:,0], n_readings[:,1])
         plt.xlabel("Greyscale")
         plt.ylabel("Light intensity (W/m^2)")
         plt.show()
-        self.greyscale_intensity_list = screen.greyscale_intensity_readings
 
     def save_image(self, wavelengths, hypercube, indices):
         '''
@@ -118,6 +120,7 @@ class FullControlMicroscope:
         '''
         for ii, wl in enumerate(wavelengths):
             image_name = 'image_cap_' + str(ii) + '_' + str(wl) + '_' + '_'.join(str(e) for e in indices) + '_img.png'
+            self.image_path_list.append(self.save_folder + "\\" + image_name)
             fn = os.path.join(self.save_folder, image_name)
             imageio.imwrite(fn, hypercube[ii].astype(np.uint16))     
 
