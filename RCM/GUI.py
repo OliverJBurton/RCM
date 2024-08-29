@@ -1,3 +1,4 @@
+import time
 import tkinter as tk
 from time import sleep
 from threading import Thread, Event
@@ -240,26 +241,13 @@ class ExperimentGUI(tk.Tk):
 
     # Checks the event queue every 500 ms
     self.after(500, self.call_handler)
-    self.after(10, self.set_appwindow)
-
-  def set_appwindow(self):
-    GWL_EXSTYLE=-20
-    WS_EX_APPWINDOW=0x00040000
-    WS_EX_TOOLWINDOW=0x00000080
-    hwnd = ctypes.windll.user32.GetParent(self.winfo_id())
-    style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-    style = style & ~WS_EX_TOOLWINDOW
-    style = style | WS_EX_APPWINDOW
-    res = ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, style)
-    self.wm_withdraw()
-    self.after(10, lambda: root.wm_deiconify())
 
   def activate_full_screen(self):
     '''
     Turns the window into a fullscreen
     '''
     screen_height, screen_width = self.winfo_screenheight(), self.winfo_screenwidth()
-    self.geometry('%dx%d%+d+%d'%(screen_width, screen_height, -screen_width, 0))
+    self.geometry('%dx%d%+d+%d'%(screen_width, screen_height, screen_width, 0))
 
   def set_color(self, color):
     '''
@@ -309,28 +297,15 @@ class ExperimentGUI(tk.Tk):
     # Put onto event queue
     self.request_queue.put(data)
 
-  def fullscreen_process(self):
-    '''
-    Tells the user to move the screen to where it'll be projected
-    Upon confirmation, activate full screen
-    '''
-    print("Move the screen to the projected screen. Type 'done' to continue.")
-    # Checks if the 4 characters of a line equals "done"
-    while sys.stdin.read(4) != "done":
-      print("type 'done' to continue")
-      # Moves onto the next line to avoid reading the printed line
-      sys.stdin.read(1)
-    print("Begining experiment")
-    # Request main thread to activate full screen
-    self.make_call(self.activate_full_screen)
-
   def greyscale_intensity_experiment(self):
     '''
     Runs experiment to obtain relationship between greyscale of the image projected and the light intensity at the end of the microscope
     '''
 
+    print("Begin Experiment")
+
     # Full screen
-    self.fullscreen_process()
+    self.make_call(self.activate_full_screen)
     
     # Loops through the greyscale range starting from white
     for i in range(255, 0, -self.step):
@@ -338,17 +313,22 @@ class ExperimentGUI(tk.Tk):
       greyscale = "#" + "{:02x}".format(i)*3
       # Request main thread to update the greyscale
       self.make_call(self.set_color, greyscale)
+      time.sleep(1)
       # Take readings
       #self.greyscale_intensity_readings.append([greyscale, self.power_meter.read()])
     # Requests main thread to end experiment
+    print("End Experiment")
     self.make_call(self.destroy)
   
   def pixel_intensity_experiment(self):
     '''
     Runs the experiment to determine how much each block of pixels contributes to the overall light intensity at the end of the microscope
     '''
+
+    print("Begin Experiment")
+
     # Full screen
-    self.fullscreen_process()
+    self.make_call(self.activate_full_screen)
 
     # Create list of dimensions for the corner of each pixel block
     x_coords = np.linspace(0, self.canvas.winfo_screenwidth(), self.xNum, endpoint=False)
@@ -360,20 +340,22 @@ class ExperimentGUI(tk.Tk):
     # Request main thread to initialise a block of darkened pixels
     self.make_call(self.initialise_rectangle, x_coords[1], y_coords[1])
 
-    # Loop throguh the all possible locations of the pixel block
+    # Loop through the all possible locations of the pixel block
     for y_coord in y_coords:
       for x_coord in x_coords:
         # Request main thread to move the block of darkened pixels
         self.make_call(self.move_rectangle, x_coord, y_coord)
+        time.sleep(1)
         # Record change in intensity 
         #self.intensity_readings[x_coord][y_coord] = full_brightness_reading - self.power_meter.read()
     # Request main thread to end experiment
+    print("End Experiment")
     self.make_call(self.destroy)
   
 if __name__ == "__main__":
   # screen1 = ImageDisplayGUI()
   screen2 = ExperimentGUI()
-  screen2.pixel_intensity_experiment_thread.start()
+  screen2.greyscale_intensity_experiment_thread.start()
   screen2.mainloop()
 
   #print(screen.intensity_readings)
