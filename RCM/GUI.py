@@ -8,6 +8,7 @@ import customtkinter
 import numpy as np
 from PIL import ImageTk, Image
 import os
+import ctypes
 
 class ImageGUI(tk.Toplevel):
   def __init__(self, image_path, image_path_list):
@@ -208,6 +209,7 @@ class _CallData:
 class ExperimentGUI(tk.Tk):
   def __init__(self, step=5, xNum=5, yNum=5):
     super().__init__()
+    self.overrideredirect(True)
     self.title("Experiment")
     self.columnconfigure(0, weight=1)
     self.rowconfigure(0, weight=1)
@@ -238,12 +240,26 @@ class ExperimentGUI(tk.Tk):
 
     # Checks the event queue every 500 ms
     self.after(500, self.call_handler)
+    self.after(10, self.set_appwindow)
+
+  def set_appwindow(self):
+    GWL_EXSTYLE=-20
+    WS_EX_APPWINDOW=0x00040000
+    WS_EX_TOOLWINDOW=0x00000080
+    hwnd = ctypes.windll.user32.GetParent(self.winfo_id())
+    style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+    style = style & ~WS_EX_TOOLWINDOW
+    style = style | WS_EX_APPWINDOW
+    res = ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, style)
+    self.wm_withdraw()
+    self.after(10, lambda: root.wm_deiconify())
 
   def activate_full_screen(self):
     '''
     Turns the window into a fullscreen
     '''
-    self.attributes("-fullscreen", True)
+    screen_height, screen_width = self.winfo_screenheight(), self.winfo_screenwidth()
+    self.geometry('%dx%d%+d+%d'%(screen_width, screen_height, -screen_width, 0))
 
   def set_color(self, color):
     '''
@@ -355,9 +371,9 @@ class ExperimentGUI(tk.Tk):
     self.make_call(self.destroy)
   
 if __name__ == "__main__":
-  screen1 = ImageDisplayGUI()
-  #screen2 = ExperimentGUI()
-  #screen2.pixel_intensity_experiment_thread.start()
-  #screen2.mainloop()
+  # screen1 = ImageDisplayGUI()
+  screen2 = ExperimentGUI()
+  screen2.pixel_intensity_experiment_thread.start()
+  screen2.mainloop()
 
   #print(screen.intensity_readings)
