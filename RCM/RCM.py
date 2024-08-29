@@ -85,14 +85,14 @@ class FullControlMicroscope:
         y_coords = np.linspace(0, canvas.height, yNum)
         intensity_readings = [[0 for i in range(yNum)] for j in range[xNum]]
 
-        full_brightness_reading = self.power_meter.read()
+        # full_brightness_reading = self.power_meter.read()
 
         for x_coord in x_coords:
             for y_coord in y_coords:
                 rect((x_coord, y_coord), (x_coord+x_coords[0], y_coord+y_coords[0]), fill="#000000")
-                intensity_readings[x_coord][y_coord] = full_brightness_reading - self.power_meter.read()
+                # intensity_readings[x_coord][y_coord] = full_brightness_reading - self.power_meter.read()
         
-        self.intensity_loss_pixel_matrix = intensity_readings
+        # self.intensity_loss_pixel_matrix = intensity_readings
 
     def greyscale_intensity_relationship(self, step=5):
         '''
@@ -212,3 +212,10 @@ class FullControlMicroscope:
                 # Take hyperspectral imaging of each box
                 wavelengths, hypercube = self.aquire_HS_datacube()
                 self.save_image(wavelengths, hypercube, [i, j])
+
+
+if __name__ == "__main__":
+    msc = FullControlMicroscope(exposure_time=0.645e-3, save_folder="C:\\Users\\whw29\\Desktop\\Images")
+
+    msc.obtain_intensity_pixel_matrix()
+    msc.close()
