@@ -204,7 +204,7 @@ if __name__ == '__main__':
                             verbose=True,
                             very_verbose=False)
     print("%s: position_um:" % controller.name, controller.position_um)
-    controller.move_um(channel=0,
+    controller.move_um(channel=1,
                        move_um=0,
                        relative=0)
     print("%s: position_um:" % controller.name, controller.position_um)

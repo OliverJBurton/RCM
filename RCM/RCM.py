@@ -7,7 +7,7 @@ from camera import Camera_BA #RGB
 from light import DC2200
 from stage import Controller
 from tunablefilter import TunableFilter
-from GUI import experimentGUI, ImageDisplayGUI
+from GUI import ExperimentGUI, ImageDisplayGUI
 import time
 import os
 import cv2
@@ -122,7 +122,10 @@ class FullControlMicroscope:
             image_name = 'image_cap_' + str(ii) + '_' + str(wl) + '_' + '_'.join(str(e) for e in indices) + '_img.png'
             self.image_path_list.append(self.save_folder + "\\" + image_name)
             fn = os.path.join(self.save_folder, image_name)
-            imageio.imwrite(fn, hypercube[ii].astype(np.uint16))     
+            imageio.imwrite(fn, hypercube[ii].astype(np.uint16))
+
+    def display_images(self):
+        screen = ImageDisplayGUI(self.image_path_list)
 
     def aquire_HS_datacube(self):
         '''
@@ -157,50 +160,40 @@ class FullControlMicroscope:
             wavelengths, hypercube = self.aquire_HS_datacube()
             self.save_image(wavelengths, hypercube, [time.time() - t0])            
 
-    def mapping(self, sample_dim=[], sample_no_per_channel=[], RGB_img_too=False):
+    def mapping(self, channels=[1, 2], sample_dim=[], sample_no_per_channel=[]):
         '''
-        Performs mapping based off size of each sample or the number of samples or both and saves image. Keep sample_no_per_channel as an empty list if you want to perform mapping based off sample size and vice versa. 
+        Performs mapping based off size of each sample or the number of samples or both and saves image. Keep sample_no_per_channel as an empty list if you want to perform mapping based off sample size and vice versa.
+        :param: specifies which channel corresponds to the x-axis and y-axis motor, e.g. [0, 2] means channel 0 is x-axis and channel 2 is y-axis
         :param: sample_dim: [dimensions of sample along channel 0, dimensions of sample along channel 1]
         :param: sample_no_per_channel: [number of samples along channel 0, number of samples along channel 1]
-        :param: RGB_img_too: takes RGB image as well as hyperspectral image if True
         '''
 
         # Either create list of locations based off size of each sample or the number of samples or both
         positions_list = []
         if sample_dim != [] and sample_no_per_channel != []:
-            for c in self.sta.channels[:2]:
+            for c in range(2):
                 # Starting from lower limit, generate required number of boxes unless coordinate of the box gets too close to upper limit
-                positions_list.append([-self.sta._position_limit_um[c]+sample_dim[c]*(i+1/2) for i in range(sample_no_per_channel[c]) if -self.sta._position_limit_um[c]+sample_dim[c]*(i+1/2) <= self.sta._position_limit_um[c]-sample_dim[c]])
+                positions_list.append([-self.sta._position_limit_um[channels[c]]+sample_dim[c]*(i+1/2) for i in range(sample_no_per_channel[c]) if -self.sta._position_limit_um[channels[c]]+sample_dim[c]*(i+1/2) <= self.sta._position_limit_um[channels[c]]-sample_dim[c]])
         elif sample_dim != []:
-            for c in self.sta.channels[:2]:
+            for c in range(2):
                 # Positions of stage, camera must be centered on the box
-                positions_list.append(np.arange(-self.sta._position_limit_um[c]+sample_dim[c]/2, self.sta._position_limit_um[c]-sample_dim[c]/2, sample_dim[c]))
+                positions_list.append(np.arange(-self.sta._position_limit_um[channels[c]]+sample_dim[c]/2, self.sta._position_limit_um[channels[c]]-sample_dim[c]/2, sample_dim[c]))
         elif sample_no_per_channel != []:
-            for c in self.sta.channels[:2]:
+            for c in range(2):
                 # Determine shift required to get from side of each box to the center of each box
-                shift = self.sta._position_limit_um[c]/sample_no_per_channel[c]
+                shift = self.sta._position_limit_um[channels[c]]/sample_no_per_channel[c]
 
                 # Determine position of the corner of each box, add shift to move position to center of box
-                positions_list.append(np.linspace(-self.sta._position_limit_um[c], self.sta._position_limit_um[c], sample_no_per_channel[c], endpoint=False) + shift)
+                positions_list.append(np.linspace(-self.sta._position_limit_um[channels[c]], self.sta._position_limit_um[channels[c]], sample_no_per_channel[c], endpoint=False) + shift)
         else:
             print("Enter valid parameters")
             return None
 
         # iterate throughout all possible boxes
         for i in positions_list[0]:
-            self.sta.move_um(self.sta.channels[0], i, relative=False)
+            self.sta.move_um(channels[0], i, relative=False)
             for j in positions_list[1]:
-                self.sta.move_um(self.sta.channels[1], j, relative=False)
-
-                if RGB_img_too:
-                    pool = Pool()
-                    spectral = pool.apply_async(self.aquire_HS_datacube, [wavelength_range, no_spectra, exposure_time])
-                    rgb = pool.apply_async(self.cba.average_exposure, [exposure_time])
-
-                    wavelengths, hypercube = spectral.get()
-                    rgbImage = rgb.get()
-                    self.save_image(wavelengths, hypercube, save_folder, [i, j])
-                    imageio.imwrite(fn, rgbImage)
+                self.sta.move_um(channels[1], j, relative=False)
 
                 # Take hyperspectral imaging of each box
                 wavelengths, hypercube = self.aquire_HS_datacube()
@@ -209,6 +202,8 @@ class FullControlMicroscope:
 
 if __name__ == "__main__":
     msc = FullControlMicroscope(exposure_time=0.645e-3, save_folder="C:\\Users\\whw29\\Desktop\\Images")
-
     msc.obtain_intensity_pixel_matrix()
     msc.close()
+
+    # msc.obtain_intensity_pixel_matrix()
+    # msc.close()
