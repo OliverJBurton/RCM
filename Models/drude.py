@@ -6,11 +6,11 @@ import numpy as np
 """
 To-do list
 - Determine bound electron component
-    - Either from: https://link.aps.org/accepted/10.1103/PhysRevB.86.235147 or mangadex.org/title/829fc3a7-d4f4-42e9-9032-0917083f9e0d/nan-hao-shang-feng
+    - https://link.aps.org/accepted/10.1103/PhysRevB.86.235147
 """
 
 class Drude():
-  def __init__(self, plasma_frequency=1.3 * 10**(16), gamma_bulk=1.64 * 10**(14), data_range=(6, 20), is_range_wavelength=False, no_data_points=100):
+  def __init__(self, plasma_frequency=1.3 * 10**(16), gamma_bulk=1.64 * 10**(14), data_range=np.linspace(1, 6, 100), is_range_wavelength=False):
     # Constants
     self.pi = np.pi
     self.h = 6.62607015 * 10**(-34) / (2*self.pi)
@@ -20,13 +20,11 @@ class Drude():
     # Model parameters
     self.plasma_frequency = plasma_frequency
     self.gamma_bulk = gamma_bulk
-    self.no_data_points = no_data_points
-
     if is_range_wavelength == True:
-      self.wavelength_in_nm = np.linspace(data_range[0], data_range[1], no_data_points)
+      self.wavelength_in_nm = data_range
       self.photon_energy_ev = self.wavelength_in_nm_to_photon_energy_ev(self.wavelength_in_nm)
     else:
-      self.photon_energy_ev = np.linspace(data_range[0], data_range[1], no_data_points)
+      self.photon_energy_ev = data_range
       self.wavelength_in_nm = self.photon_energy_ev_to_wavelength_in_nm(self.photon_energy_ev)
     self.frequency_rad = self.photon_energy_ev*self.e/self.h
 
@@ -86,5 +84,6 @@ class Drude():
     plt.show()
 
 if __name__ == "__main__":
-  refractive_index_model = Drude(data_range=(420, 730), is_range_wavelength=True)
+  wavelength_range = np.linspace(430, 720, 100)
+  refractive_index_model = Drude(data_range=wavelength_range, is_range_wavelength=True)
   refractive_index_model.plot_optical_constants()
