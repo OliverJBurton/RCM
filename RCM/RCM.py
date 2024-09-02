@@ -84,6 +84,7 @@ class FullControlMicroscope:
         experiment_screen.mainloop()
         
         self.intensity_loss_pixel_matrix = experiment_screen.intensity_readings
+        np.savetxt("intensity_pixel_data.txt", self.intensity_loss_pixel_matrix)
 
     def greyscale_intensity_relationship(self, step=5):
         '''
@@ -104,6 +105,7 @@ class FullControlMicroscope:
         experiment_screen.mainloop()
 
         self.greyscale_intensity_list = experiment_screen.greyscale_intensity_readings
+        np.savetxt("greyscale_intensity_data.txt", self.greyscale_intensity_list)
         
         n_readings = np.array(experiment_screen.greyscale_intensity_readings)
         plt.plot(n_readings[:,0], n_readings[:,1])
