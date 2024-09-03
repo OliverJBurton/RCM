@@ -46,12 +46,11 @@ class Drude_Gold():
 
     ## Optical constants
     # Calculate dielectric function from refractive index
-    self.real_dielectric_function = self.calc_real_dielectric_function_from_n_and_k(self.n, self.k)
-    self.imaginary_dielectric_function = self.calc_imaginary_dielectric_function_from_n_and_k(self.n, self.k)
+    self.dielectric_function = self.calc_dielectric_function_from_n_and_k(self.n, self.k)
     # Get free component from Drude's model
     self.free_dielectric_function = self.calc_free_dielectric_function(self.frequency_rad)
     # Get bound component by subtracting free component from total
-    self.bound_dielectric_function = self.real_dielectric_function + self.imaginary_dielectric_function*1j - self.free_dielectric_function
+    self.bound_dielectric_function = self.dielectric_function - self.free_dielectric_function
     # Get size corrected free component
     self.corrected_free_dielectric_function = self.calc_corrected_free_dielectric_function(self.frequency_rad, self.c)
     # Get size corrected dielectric function
@@ -73,13 +72,10 @@ class Drude_Gold():
     return 1 - self.plasma_frequency**2 / (frequency_rad**2 + 1j*frequency_rad*(self.gamma_bulk + c*self.v_fermi/self.radius_nm))
 
   def calc_refractive_index(self, dielectric_function):
-    return np.sqrt(np.absolute(dielectric_function)+dielectric_function.real)/4 + np.sqrt(np.absolute(dielectric_function)-dielectric_function.real)/4 * 1j
+    return np.sqrt((np.absolute(dielectric_function)+dielectric_function.real)/2) + np.sqrt((np.absolute(dielectric_function)-dielectric_function.real)/2) * 1j
 
-  def calc_real_dielectric_function_from_n_and_k(self, n, k):
-    return n**2 - k**2
-  
-  def calc_imaginary_dielectric_function_from_n_and_k(self, n, k):
-    return 2*n*k
+  def calc_dielectric_function_from_n_and_k(self, n, k):
+    return (n**2 - k**2) + 2j*n*k
 
   def get_c_parameter(self, dielectric_function_data):
     parameters, covariance = curve_fit(self.calc_corrected_free_dielectric_function, self.frequency_rad, self.dielectric_function_data)
@@ -110,6 +106,8 @@ class Drude_Gold():
     ax[0].minorticks_on()
 
     # Plot for refractive indices
+    # ax[1].plot(x_axis, self.n, label="n")
+    # ax[1].plot(x_axis, self.k, label="k")
     ax[1].plot(x_axis, self.corrected_refractive_index.real, label="n")
     ax[1].plot(x_axis, self.corrected_refractive_index.imag, label="k")
     ax[1].legend()
@@ -140,4 +138,4 @@ if __name__ == "__main__":
   # wavelength_range = np.linspace(200, 1000, 100)
   # photon_energy_ev = np.linspace(1, 6, 100)
   model = Drude_Gold(radius_nm=1)
-  model.plot_optical_constants(x_limits=(200, 1000), y_limits=(-50, 5), use_wavelength=True)
+  model.plot_optical_constants(x_limits=(400, 900), y_limits=(0, 6), use_wavelength=True)

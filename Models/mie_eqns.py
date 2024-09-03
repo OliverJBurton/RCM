@@ -139,6 +139,41 @@ def _mie_An_Bn(m, x):
 
   return a, b
 
+@njit((complex128, float64), cache=True)
+def _small_mie(m, x):
+    """
+    Calculate the efficiencies for a small sphere.
+
+    Typically used for small spheres where x<0.1
+
+    Args:
+        m: the complex index of refraction of the sphere
+        x: the size parameter of the sphere
+
+    Returns:
+        qext: the total extinction efficiency
+        qsca: the scattering efficiency
+        qback: the backscatter efficiency
+        g: the average cosine of the scattering phase function
+    """
+    m2 = m * m
+    x2 = x * x
+
+    D = m2 + 2 + (1 - 0.7 * m2) * x2
+    D -= (8 * m**4 - 385 * m2 + 350) * x**4 / 1400.0
+    D += 2j * (m2 - 1) * x**3 * (1 - 0.1 * x2) / 3
+    ahat1 = 2j * (m2 - 1) / 3 * (1 - 0.1 * x2 + (4 * m2 + 5) * x**4 / 1400) / D
+
+    bhat1 = 1j * x2 * (m2 - 1) / 45 * (1 + (2 * m2 - 5) / 70 * x2)
+    bhat1 /= 1 - (2 * m2 - 5) / 30 * x2
+
+    ahat2 = 1j * x2 * (m2 - 1) / 15 * (1 - x2 / 14)
+    ahat2 /= 2 * m2 + 3 - (2 * m2 - 7) / 14 * x2
+
+    qext = 6 * x * (ahat1 + bhat1 + 5 * ahat2 / 3).real
+
+    return qext
+
 #@njit((complex128, complex128, float64, float64), cache=True)
 def _mie_An_Bn_coated(m_1, m_2, x, y):
   # Remember to make the imaginary part of m1 and m2 positive
@@ -171,12 +206,15 @@ def _mie_An_Bn_coated(m_1, m_2, x, y):
 
   return a,b
 
-@njit((complex128, float64), cache=True)
-def _calc_extinction_efficiency_scalar(m, x):
-  a, b = _mie_An_Bn(m, x)
-  n = np.arange(1, len(a)+1)
+@njit((complex128, float64, float64), cache=True)
+def _calc_extinction_efficiency_scalar(m, x, k):
+  if m.real > 0.0 and np.abs(m)*x < 0.1:
+    Q_ext = _small_mie(m, x)
+  else:
+    a, b = _mie_An_Bn(m, x)
+    n = np.arange(1, len(a)+1)
 
-  Q_ext = 2*np.sum((2.0*n + 1.0)*(a.real + b.real)) / x**2
+    Q_ext = 2*np.pi/x**2*np.sum((2.0*n + 1.0)*(a.real + b.real))
   return Q_ext
 
 #@njit((complex128, complex128, float64, float64), cache=True)
@@ -190,7 +228,8 @@ def _calc_extinction_efficiency_coated_scalar(m_1, m_2, x, y):
 #@njit((complex128, complex128, float64, float64[:]), cache=True)
 def calc_extinction_coefficient_for_sphere(N_particle, N_medium, radius, wavelength_vacuo):
   m = N_particle / N_medium # May need to be changed into something calculated
-  x = 2*np.pi*N_medium*radius/wavelength_vacuo
+  k = 2*np.pi*N_medium/wavelength_vacuo
+  x = k*radius
 
   if np.isscalar(wavelength_vacuo):
     return _calc_extinction_efficiency_scalar(m, x)
@@ -198,7 +237,7 @@ def calc_extinction_coefficient_for_sphere(N_particle, N_medium, radius, wavelen
   no_data_points = len(wavelength_vacuo)
   c_ext = np.empty(no_data_points, dtype=np.float64)
   for i in range(no_data_points):
-    c_ext[i] = _calc_extinction_efficiency_scalar(m[i], x[i])*np.pi*radius**2
+    c_ext[i] = _calc_extinction_efficiency_scalar(m[i], x[i], k[i])*np.pi*radius**2
   
   return c_ext
 
