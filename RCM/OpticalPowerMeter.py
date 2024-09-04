@@ -1,37 +1,38 @@
 import pyvisa as visa
-from ThorlabsPM100 import ThorlabsPM100
 from pyvisa.constants import Parity, StopBits
 import time
 
-#Need to download ThorlabsPM100 module: pip3 install ThorlabsPM100
-
-class PM100:
+class PM16_120:
   def __init__(self):
     self.rm = visa.ResourceManager()
-    print(self.rm.list_resources())
-    
-    inst = self.rm.open_resource('ASRL/dev/cu.usbserial-FT65H2R6::INSTR', 
-    baud_rate=9600, 
-    data_bits=8,
-    parity=Parity.none, 
-    write_termination='\x0A', #Line feed
-    read_termination='\x0D\x0A', #Line feed
-    stop_bits=StopBits.one,
-    flow_control=VI_ASRL_FLOW_RTS_CTS,
-    timeout=1000)
+    try:
+      self.inst = self.rm.open_resource("USB0::0x1313::0x807B::230620213::INSTR")
+      try:
+        print(f"Power meter is online: {self.inst.query('*IDN?')}")
+      except TimeoutError:
+        print("Power meter failed to initialise")
+    except:
+      print("Power meter not found. Did you plug it in?")
 
-    inst.write('*IDN?')
-    time.sleep(1)
-    print(inst.read_bytes(1))
+  def get_power_reading_W(self):
+    return self.inst.query("Read?")
 
-    # self.power_meter = ThorlabsPM100(inst = inst, verbose=True)
+  def set_wavelength(self, wavelength):
+    if not 400 <= wavelength <= 1100:
+      raise ValueError("{} nm is not in [400, 1100] nm range".format(wavelength))
 
-  def read(self):
-    return self.power_meter.read
+    self.inst.write("SENS:CORR:WAV {}".format(wavelength))
 
+  def get_wavelength_setting(self):
+    wavelength = float(self.inst.query("SENS:CORR:WAV?"))
+    print(f"Wavelength is set to {wavelength} nm")
+    return wavelength
 
 if __name__ == "__main__":
-  light_reader = PM100()
+  light_reader = PM16_120()
+  light_reader.set_wavelength(405)
+  light_reader.get_wavelength_setting()
+  print(light_reader.get_power_reading_W())
   # print(light_reader.read())
 
 
