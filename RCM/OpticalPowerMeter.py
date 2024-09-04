@@ -14,9 +14,10 @@ class PM100:
     baud_rate=9600, 
     data_bits=8,
     parity=Parity.none, 
-    write_termination='\x0A',
-    read_termination='\x0A', 
+    write_termination='\x0A', #Line feed
+    read_termination='\x0D\x0A', #Line feed
     stop_bits=StopBits.one,
+    flow_control=VI_ASRL_FLOW_RTS_CTS,
     timeout=1000)
 
     inst.write('*IDN?')

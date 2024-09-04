@@ -9,6 +9,8 @@ To-do list
     - https://link.aps.org/accepted/10.1103/PhysRevB.86.235147
 """
 
+# Note the refractive index and wavelength function are fairly valid up to 900 nm
+
 class Drude_Gold():
   # Default values are for gold
   def __init__(self, radius_nm=-1, verbose=False):
@@ -38,7 +40,7 @@ class Drude_Gold():
     self.radius_nm = radius_nm
 
     # elif #data_file is available and radius != -1:
-    #   parameters, covariance = self.get_c_parameter(dielectric_function_data)
+    #   parameters, covariance = self.get_c_parameter(dielectric_data_data)
     #   self.c = parameters[0]
     #   self.error = covariance
     # else:
@@ -46,17 +48,20 @@ class Drude_Gold():
 
     ## Optical constants
     # Calculate dielectric function from refractive index
-    self.dielectric_function = self.calc_dielectric_function_from_n_and_k(self.n, self.k)
+    self.dielectric_data = self.calc_dielectric_data_from_n_and_k(self.n, self.k)
     # Get free component from Drude's model
-    self.free_dielectric_function = self.calc_free_dielectric_function(self.frequency_rad)
+    self.free_dielectric_data = self.calc_free_dielectric_data(self.frequency_rad)
     # Get bound component by subtracting free component from total
-    self.bound_dielectric_function = self.dielectric_function - self.free_dielectric_function
+    self.bound_dielectric_data = self.dielectric_data - self.free_dielectric_data
     # Get size corrected free component
-    self.corrected_free_dielectric_function = self.calc_corrected_free_dielectric_function(self.frequency_rad, self.c)
+    self.corrected_free_dielectric_data = self.calc_corrected_free_dielectric_data(self.frequency_rad, self.c)
     # Get size corrected dielectric function
-    self.corrected_dielectric_function = self.corrected_free_dielectric_function + self.bound_dielectric_function
+    self.corrected_dielectric_data = self.corrected_free_dielectric_data + self.bound_dielectric_data
     # Get size corrected refractive index
-    self.corrected_refractive_index = self.calc_refractive_index(self.corrected_dielectric_function)
+    self.corrected_refractive_index = self.calc_refractive_index(self.corrected_dielectric_data)
+
+    self.corrected_free_dielectric_function_wavelength = self.get_poly_fit_function(self.dielectric_data, self.wavelength_in_nm, 7)
+    self.corrected_refractive_index_function_wavelength = self.get_poly_fit_function(self.corrected_refractive_index, self.wavelength_in_nm, 7)
   
   def photon_energy_ev_to_wavelength_in_nm(self, photon_energy_ev):
     return self.c / (photon_energy_ev/self.h*self.e/(2*self.pi))* 10**(9)
@@ -64,52 +69,63 @@ class Drude_Gold():
   def wavelength_in_nm_to_photon_energy_ev(self, wavelength_in_nm):
     return self.c / (wavelength_in_nm/10**9)*2*self.pi/self.e*self.h
 
-  def calc_free_dielectric_function(self, frequency_rad):
+  def calc_free_dielectric_data(self, frequency_rad):
     return 1 - self.plasma_frequency**2 / (frequency_rad**2 + 1j*frequency_rad*self.gamma_bulk)
     #return 1 - self.plasma_frequency**2 / (frequency_rad**2 + self.gamma_bulk**2) + (self.plasma_frequency**2*self.gamma_bulk / (frequency_rad*(frequency_rad**2 + self.gamma_bulk**2)))*1j
   
-  def calc_corrected_free_dielectric_function(self, frequency_rad, c):
+  def calc_corrected_free_dielectric_data(self, frequency_rad, c):
     return 1 - self.plasma_frequency**2 / (frequency_rad**2 + 1j*frequency_rad*(self.gamma_bulk + c*self.v_fermi/self.radius_nm))
 
-  def calc_refractive_index(self, dielectric_function):
-    return np.sqrt((np.absolute(dielectric_function)+dielectric_function.real)/2) + np.sqrt((np.absolute(dielectric_function)-dielectric_function.real)/2) * 1j
+  def calc_refractive_index(self, dielectric_data):
+    return np.sqrt((np.absolute(dielectric_data)+dielectric_data.real)/2) + np.sqrt((np.absolute(dielectric_data)-dielectric_data.real)/2) * 1j
 
-  def calc_dielectric_function_from_n_and_k(self, n, k):
+  def calc_dielectric_data_from_n_and_k(self, n, k):
     return (n**2 - k**2) + 2j*n*k
 
-  def get_c_parameter(self, dielectric_function_data):
-    parameters, covariance = curve_fit(self.calc_corrected_free_dielectric_function, self.frequency_rad, self.dielectric_function_data)
+  def get_c_parameter(self, dielectric_data):
+    parameters, covariance = curve_fit(self.calc_corrected_free_dielectric_data, self.frequency_rad, self.dielectric_data_data)
     return parameters, covariance
+
+  def get_poly_fit_function(self, y, x, order):
+    z = np.polyfit(x, y, order)
+    return np.poly1d(z)
 
   def plot_optical_constants(self, x_limits=(), y_limits=(-7, 7), use_wavelength=False):
     ## Plotting
     fig, ax = plt.subplots(2, 1, sharex=True)
 
+    # Change x_axis and plot of functions accordingly
     if use_wavelength:
       x_axis = self.wavelength_in_nm
+      x_new = np.linspace(x_axis[0], x_axis[-1], 100)
+      corrected_free_dielectric_function = self.corrected_free_dielectric_function_wavelength(x_new)
+      corrected_refractive_index_function = self.corrected_refractive_index_function_wavelength(x_new)
     else:
       x_axis = self.photon_energy_ev
-    
+      x_new = np.linspace(x_axis[0], x_axis[-1], 100)
+      corrected_free_dielectric_function = self.get_poly_fit_function(self.corrected_dielectric_data, self.photon_energy_ev, 7)(x_new)
+      corrected_refractive_index_function = self.get_poly_fit_function(self.corrected_refractive_index, self.photon_energy_ev, 7)(x_new)
+
+    # Set custom limit if provided
     if x_limits == ():
       x_lim = (x_axis[-1], x_axis[0])
     else:
       x_lim = x_limits
 
     # Plot for dielectric function
-    ax[0].plot(x_axis, self.corrected_dielectric_function.real, label=r"$\epsilon$''")
-    ax[0].plot(x_axis, self.corrected_dielectric_function.imag, label=r"$\epsilon$'")
+    ax[0].plot(x_axis, self.corrected_dielectric_data.real, 'rx', x_new, corrected_free_dielectric_function.real, label=r"$\epsilon$''")
+    ax[0].plot(x_axis, self.corrected_dielectric_data.imag, 'bx', x_new, corrected_free_dielectric_function.imag, label=r"$\epsilon$''")
     ax[0].plot(self.plasma_frequency*self.h/self.e, 0, "rx")
     ax[0].axhline(0, color="black", lw=1)
     ax[0].set_ylabel("$\epsilon$")
-    #ax[0].set_ylim((-8, 8))
     ax[0].legend()
     ax[0].minorticks_on()
 
     # Plot for refractive indices
     # ax[1].plot(x_axis, self.n, label="n")
     # ax[1].plot(x_axis, self.k, label="k")
-    ax[1].plot(x_axis, self.corrected_refractive_index.real, label="n")
-    ax[1].plot(x_axis, self.corrected_refractive_index.imag, label="k")
+    ax[1].plot(x_axis, self.corrected_refractive_index.real, 'rx', x_new, corrected_refractive_index_function.real, label="n")
+    ax[1].plot(x_axis, self.corrected_refractive_index.imag, 'bx', x_new, corrected_refractive_index_function.imag, label="k")
     ax[1].legend()
     ax[1].set_ylabel("Refractive index")
 
@@ -138,4 +154,4 @@ if __name__ == "__main__":
   # wavelength_range = np.linspace(200, 1000, 100)
   # photon_energy_ev = np.linspace(1, 6, 100)
   model = Drude_Gold(radius_nm=1)
-  model.plot_optical_constants(x_limits=(400, 900), y_limits=(0, 6), use_wavelength=True)
+  model.plot_optical_constants(y_limits=(-50, 10), use_wavelength=True)

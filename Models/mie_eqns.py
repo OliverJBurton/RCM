@@ -89,6 +89,7 @@ def _D_calc(m, x, N):
     _D_upwards(m * x, N, D)
   return D
 
+## For Homoegenous Sphere ##
 @njit((complex128, float64), cache=True)
 def _mie_An_Bn(m, x):
   """
@@ -174,6 +175,33 @@ def _small_mie(m, x):
 
     return qext
 
+@njit((complex128, float64), cache=True)
+def _calc_extinction_efficiency_scalar(m, x):
+  if m.real > 0.0 and np.abs(m)*x < 0.1:
+    Q_ext = _small_mie(m, x)
+  else:
+    a, b = _mie_An_Bn(m, x)
+    n = np.arange(1, len(a)+1)
+
+    Q_ext = 2*np.pi/x**2*np.sum((2.0*n + 1.0)*(a.real + b.real))
+  return Q_ext
+
+#@njit((complex128, complex128, float64, float64[:]), cache=True)
+def calc_extinction_coefficient_for_sphere(N_particle, N_medium, radius, wavelength_vacuo):
+  m = N_particle / N_medium # May need to be changed into something calculated
+  x = 2*np.pi*N_medium/wavelength_vacuo*radius
+
+  if np.isscalar(wavelength_vacuo):
+    return _calc_extinction_efficiency_scalar(m, x)
+  
+  no_data_points = len(wavelength_vacuo)
+  c_ext = np.empty(no_data_points, dtype=np.float64)
+  for i in range(no_data_points):
+    c_ext[i] = _calc_extinction_efficiency_scalar(m[i], x[i])*np.pi*radius**2
+  
+  return c_ext
+
+## For multilayer sphere ##
 #@njit((complex128, complex128, float64, float64), cache=True)
 def _mie_An_Bn_coated(m_1, m_2, x, y):
   # Remember to make the imaginary part of m1 and m2 positive
@@ -199,47 +227,48 @@ def _mie_An_Bn_coated(m_1, m_2, x, y):
   chi_n_y, dchi_n_y = riccati_yn(nstop-1, x)
   chi_n_m2y, dchi_n_m2y = riccati_yn(nstop-1, m_2*y)
 
-  eta_n_y, deta_n_y = np.add((-chi_n_y*1j, -dchi_n_y*1j), (psi_n_y, dpsi_n_y))
+  eta_n_y, deta_n_y = (psi_n_y-chi_n_y*1j, dpsi_n_y-dchi_n_y*1j)
 
   a = (psi_n_y*(dpsi_n_m2y - A*dchi_n_m2y) - m_2*dpsi_n_y*(psi_n_m2y - A*chi_n_m2y)) / (eta_n_y*(dpsi_n_m2y - A*dchi_n_m2y) - m_2*eta_n_y*(psi_n_m2y - A*chi_n_m2y))
   b = (m_2*psi_n_y*(dpsi_n_m2y - B*dchi_n_m2y) - dpsi_n_y*(psi_n_m2y - B*chi_n_m2y)) / (m2*eta_n_y*(dpsi_n_m2y - B*dchi_n_m2y) - deta_n_y*(psi_n_m2y - B*chi_n_m2y))
 
   return a,b
 
-@njit((complex128, float64, float64), cache=True)
-def _calc_extinction_efficiency_scalar(m, x, k):
-  if m.real > 0.0 and np.abs(m)*x < 0.1:
-    Q_ext = _small_mie(m, x)
-  else:
-    a, b = _mie_An_Bn(m, x)
-    n = np.arange(1, len(a)+1)
+@njit((complex128, complex128, float64, float64), cache=True)
+def _small_An_Bn_coated(m_1, m_2, x, y):
+  # Calculation of A and B using Power expansions of Riccati-Spherical functions and n=2
+  psi_2_m1x, dpsi_2_m1x = ((m_1*x)**2/3 - (m_1*x)**4/30 + (m_1*x)**3/15, 2*(m_1*x)/3 - 2*(m_1*x)**3/15 + (m_1*x)**2/5)
+  psi_2_m2x, dpsi_2_m2x = ((m_2*x)**2/3 - (m_2*x)**4/30 + (m_2*x)**3/15, 2*(m_2*x)/3 - 2*(m_2*x)**3/15 + (m_2*x)**2/5)
 
-    Q_ext = 2*np.pi/x**2*np.sum((2.0*n + 1.0)*(a.real + b.real))
-  return Q_ext
+  chi_2_m2x, dchi_2_m2x = (1j/(m_2*x) + 1j*(m_2*x)/2 + 3j/(m_2*x)**2, -1j/(m_2*x)**2 + 1j/2 - 6j/(m_2*x)**3)
+
+  A = (m_2*psi_2_m2x*dpsi_2_m1x - m_1*dpsi_2_m2x*psi_2_m1x) / (m_2*chi_2_m2x*dpsi_2_m1x - m_1*dchi_2_m2x*psi_2_m1x)
+  B = (m_2*psi_2_m1x*dpsi_2_m2x - m_1*psi_2_m2x*dpsi_2_m1x) / (m_2*dchi_2_m2x*psi_2_m1x - m_1*dpsi_2_m1x*chi_2_m2x)
+
+  # Calculation of a and b using Power expansions of Riccati-Spherical functions and n=2
+  psi_2_y, dpsi_2_y = (y**2/3 - y**4/30 + y**3/15, 2*y/3 - 2*y**3/15 + y**2/5)
+  psi_2_m2y, dpsi_2_m2y = ((m_2*x)**2/3 - (m_2*x)**4/30 + (m_2*x)**3/15, 2*(m_2*x)/3 - 2*(m_2*x)**3/15 + (m_2*x)**2/5)
+
+  chi_2_y, dchi_2_y = (1j/y + 1j*y/2 + 3j/y**2, -1j/y**2 + 1j/2 - 6j/y**3)
+  chi_2_m2y, dchi_2_m2y = (1j/(m_2*y) + 1j*(m_2*y)/2 + 3j/(m_2*y)**2, -1j/(m_2*y)**2 + 1j/2 - 6j/(m_2*y)**3)
+
+  eta_2_y, deta_2_y = (psi_2_y - 1j*chi_2_y, dpsi_2_y - 1j*dchi_2_y)
+
+  a = (psi_2_y*(dpsi_2_m2y - A*dchi_2_m2y) - m_2*dpsi_2_y*(psi_2_m2y - A*chi_2_m2y)) / (eta_2_y*(dpsi_2_m2y - A*dchi_2_m2y) - m_2*eta_2_y*(psi_2_m2y - A*chi_2_m2y))
+  b = (m_2*psi_2_y*(dpsi_2_m2y - B*dchi_2_m2y) - dpsi_2_y*(psi_2_m2y - B*chi_2_m2y)) / (m_2*eta_2_y*(dpsi_2_m2y - B*dchi_2_m2y) - deta_2_y*(psi_2_m2y - B*chi_2_m2y))
+
+  return a, b
 
 #@njit((complex128, complex128, float64, float64), cache=True)
 def _calc_extinction_efficiency_coated_scalar(m_1, m_2, x, y):
-  a, b = _mie_An_Bn_coated(m_1, m_2, x, y)
+  if m_1.real > 0.0 and np.abs(m_1)*x < 0.1 and m_2.real > 0.0 and np.abs(m_2)*y < 0.1:
+    a, b = _small_An_Bn_coated(m_1, m_2, x, y)
+  else:
+    a, b = _mie_An_Bn_coated(m_1, m_2, x, y)
+  
   n = np.arange(1, len(a)+1)
-
   Q_ext = 2*np.sum((2.0*n + 1.0)*(a.real + b.real)) / y**2
   return Q_ext
-
-#@njit((complex128, complex128, float64, float64[:]), cache=True)
-def calc_extinction_coefficient_for_sphere(N_particle, N_medium, radius, wavelength_vacuo):
-  m = N_particle / N_medium # May need to be changed into something calculated
-  k = 2*np.pi*N_medium/wavelength_vacuo
-  x = k*radius
-
-  if np.isscalar(wavelength_vacuo):
-    return _calc_extinction_efficiency_scalar(m, x)
-  
-  no_data_points = len(wavelength_vacuo)
-  c_ext = np.empty(no_data_points, dtype=np.float64)
-  for i in range(no_data_points):
-    c_ext[i] = _calc_extinction_efficiency_scalar(m[i], x[i], k[i])*np.pi*radius**2
-  
-  return c_ext
 
 #@njit((complex128, complex128, complex128, float64, float64, float64[:]), cache=True)
 def calc_extinction_coefficient_for_coated_sphere(N_particle, N_coat, N_medium, particle_radius, coat_radius, wavelength_vacuo):
@@ -257,6 +286,7 @@ def calc_extinction_coefficient_for_coated_sphere(N_particle, N_coat, N_medium, 
     c_ext[i] = _calc_extinction_efficiency_coated_scalar(m_1[i], m_2[i], x[i], y[i])
   return c_ext
 
+## For slab of particles
 def calc_extinction_for_a_slab_of_particles(particle_number_density, thickness, c_ext):
   absorbance = particle_number_density*thickness*c_ext
 
