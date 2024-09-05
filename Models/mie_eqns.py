@@ -2,6 +2,16 @@ import numpy as np
 from numba import njit, int32, float64, complex128
 from scipy.special import riccati_jn, riccati_yn
 
+'''
+Functions with underlines in front of their names are for use internally and can be ignored for regular use
+
+Functions meant to be used:
+- calc_extinction_coefficient_for_sphere
+- calc_extinction_coefficient_for_coated_sphere
+- calc_extinction_for_a_slab_of_particles
+'''
+
+
 @njit((complex128, int32), cache=True)
 def _Lentz_Dn(z, N):
   """
@@ -177,6 +187,17 @@ def _small_mie(m, x):
 
 @njit((complex128, float64), cache=True)
 def _calc_extinction_efficiency_scalar(m, x):
+  """
+  Calculate the efficiency for a sphere when both m and x are scalars.
+
+  Args:
+      m: the complex index of refraction of the sphere
+      x: the size parameter of the sphere
+
+  Returns:
+      qext: the total extinction efficiency
+  """
+
   if m.real > 0.0 and np.abs(m)*x < 0.1:
     Q_ext = _small_mie(m, x)
   else:
@@ -188,7 +209,20 @@ def _calc_extinction_efficiency_scalar(m, x):
 
 #@njit((complex128, complex128, float64, float64[:]), cache=True)
 def calc_extinction_coefficient_for_sphere(N_particle, N_medium, radius, wavelength_vacuo):
-  m = N_particle / N_medium # May need to be changed into something calculated
+  """
+  Calculate the extinction cross-section for a sphere where wavelength and refractive index may be an array.
+
+  Args:
+      N_particle: the complex refractive index of the particle
+      N_medium: the complex refractive index of the medium
+      radius: the radius of the particle
+      wavelength_vacuo: wavelength of the plane light incident on the particle in the medium
+
+  Returns:
+      c_ext: the extinction cross-section
+  """
+  # Convention used is negative imaginary component of refractive index
+  m = np.conjugate(N_particle) / np.conjugate(N_medium)
   x = 2*np.pi*N_medium/wavelength_vacuo*radius
 
   if np.isscalar(wavelength_vacuo):
@@ -204,6 +238,22 @@ def calc_extinction_coefficient_for_sphere(N_particle, N_medium, radius, wavelen
 ## For multilayer sphere ##
 #@njit((complex128, complex128, float64, float64), cache=True)
 def _mie_An_Bn_coated(m_1, m_2, x, y):
+  """
+  Compute arrays of Mie coefficients a and b for a sphere.
+
+  This estimates the size of the arrays based on Wiscombe's formula. The length
+  of the arrays is chosen so that the error when the series are summed is
+  around 1e-6.
+
+  Args:
+      m_1: the complex refractive index of the sphere
+      m_2: the complex refractive index of the coat
+      x: the size parameter of the sphere
+      y: the size parameter of the coat
+
+  Returns:
+      a, b: arrays of Mie coefficents an and bn
+  """
   # Remember to make the imaginary part of m1 and m2 positive
   nstop = int(x + 4.05 * x**0.33333 + 2.0) + 1
   a = np.zeros(nstop - 1, dtype=np.complex128)
@@ -236,6 +286,20 @@ def _mie_An_Bn_coated(m_1, m_2, x, y):
 
 @njit((complex128, complex128, float64, float64), cache=True)
 def _small_An_Bn_coated(m_1, m_2, x, y):
+    """
+    Compute arrays of Mie coefficients a and b for a small sphere.
+
+    Typically used for small spheres where x<0.1
+
+    Args:
+      m_1: the complex refractive index of the sphere
+      m_2: the complex refractive index of the coat
+      x: the size parameter of the sphere
+      y: the size parameter of the coat
+
+    Returns:
+        a, b: arrays of Mie coefficents an and bn
+    """
   # Calculation of A and B using Power expansions of Riccati-Spherical functions and n=2
   psi_2_m1x, dpsi_2_m1x = ((m_1*x)**2/3 - (m_1*x)**4/30 + (m_1*x)**3/15, 2*(m_1*x)/3 - 2*(m_1*x)**3/15 + (m_1*x)**2/5)
   psi_2_m2x, dpsi_2_m2x = ((m_2*x)**2/3 - (m_2*x)**4/30 + (m_2*x)**3/15, 2*(m_2*x)/3 - 2*(m_2*x)**3/15 + (m_2*x)**2/5)
@@ -261,6 +325,19 @@ def _small_An_Bn_coated(m_1, m_2, x, y):
 
 #@njit((complex128, complex128, float64, float64), cache=True)
 def _calc_extinction_efficiency_coated_scalar(m_1, m_2, x, y):
+  """
+  Calculate the efficiency for a sphere when both m_1, m_2, x, and y are scalars
+
+  Args:
+      m_1: the complex refractive index of the sphere
+      m_2: the complex refractive index of the coat
+      x: the size parameter of the sphere
+      y: the size parameter of the coat
+
+  Returns:
+      qext: the total extinction efficiency
+  """
+
   if m_1.real > 0.0 and np.abs(m_1)*x < 0.1 and m_2.real > 0.0 and np.abs(m_2)*y < 0.1:
     a, b = _small_An_Bn_coated(m_1, m_2, x, y)
   else:
@@ -272,6 +349,21 @@ def _calc_extinction_efficiency_coated_scalar(m_1, m_2, x, y):
 
 #@njit((complex128, complex128, complex128, float64, float64, float64[:]), cache=True)
 def calc_extinction_coefficient_for_coated_sphere(N_particle, N_coat, N_medium, particle_radius, coat_radius, wavelength_vacuo):
+  """
+  Calculate the extinction cross-section for a coated sphere where refractive index or wavelength may be arrays.
+
+  Args:
+      N_particle: the complex refractive index of the particle
+      N_coat: the complex refractive index of the coat
+      N_medium: the complex refractive index of the medium
+      particle_radius: the radius of the particle
+      particle_coat: the outer radius of the coat
+      wavelength_vacuo: wavelength of the plane light incident on the particle in the medium
+
+  Returns:
+      c_ext: the extinction cross-section
+  """
+
   m_1 = N_particle / N_medium
   m_2 = N_coat / N_medium
   x = 2*np.pi*particle_radius/wavelength_vacuo
@@ -288,6 +380,17 @@ def calc_extinction_coefficient_for_coated_sphere(N_particle, N_coat, N_medium, 
 
 ## For slab of particles
 def calc_extinction_for_a_slab_of_particles(particle_number_density, thickness, c_ext):
+  '''
+  Calculate the ratio of transmitted intensity of light passing through a homogenous slab of particles to the incident intensity of light using Beer-Lambert law
+
+  Args:
+      particle_number_density: number of particles per unit volume
+      thickness: length of slab the light passes through
+      c_ext: extinction cross-section of each particle in the slab
+    
+  Returns:
+      Extinction
+  '''
   absorbance = particle_number_density*thickness*c_ext
 
   if absorbance >= 1:

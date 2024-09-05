@@ -3,11 +3,17 @@ from pyvisa.constants import Parity, StopBits
 import time
 
 class PM16_120:
+  '''
+  Enables control of the PM16-120 USB optical power meter
+  '''
   def __init__(self):
     self.rm = visa.ResourceManager()
     try:
+      # Value inside brackets must be address of the USB port
+      # Use print(self.rm.list_resources()) to determine port address
       self.inst = self.rm.open_resource("USB0::0x1313::0x807B::230620213::INSTR")
       try:
+        # Prints identification number if device is connected
         print(f"Power meter is online: {self.inst.query('*IDN?')}")
       except TimeoutError:
         print("Power meter failed to initialise")
@@ -18,6 +24,7 @@ class PM16_120:
     return self.inst.query("Read?")
 
   def set_wavelength(self, wavelength):
+    # Checks if wavelength is within limit of device
     if not 400 <= wavelength <= 1100:
       raise ValueError("{} nm is not in [400, 1100] nm range".format(wavelength))
 

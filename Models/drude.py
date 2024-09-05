@@ -4,97 +4,152 @@ import numpy as np
 # -*- coding: utf-8 -*-
 
 """
-To-do list
-- Determine bound electron component
-    - https://link.aps.org/accepted/10.1103/PhysRevB.86.235147
+Data
+- Fermi velocity, plasma frequency, and damping constant of gold
+    https://iopscience.iop.org/article/10.1088/0957-4484/16/1/030/pdf
+- Fermi velocity, plasma frequency, and damping constant of silver and copper
+    https://www.researchgate.net/figure/Lorentz-Drude-model-parameters-for-gold_tbl1_260291014
+    http://230nsc1.phy-astr.gsu.edu/hbase/Tables/fermi.html
+- Data for refractive indices of gold, copper, and silver
+    https://journals.aps.org/prb/pdf/10.1103/PhysRevB.6.4370
 """
 
 # Note the refractive index and wavelength function are fairly valid up to 900 nm
 
-class Drude_Gold():
-  # Default values are for gold
-  def __init__(self, radius_nm=-1, verbose=False):
+class Drude():
+  '''
+  Drude model for modelling the dielectric function of pure metals
+  Includes size correction for when radius of the particle is less than free path length and additional damping arises due to electron collision with boundary
+  Works for frequencies corresponding to photon energies of 0.64 eV - 6.6 eV (or 200 nm to 1800 nm)
+  Uses data from Johnson and Christy 
+
+  :param radius_nm: radius or characteristic length of the particle
+  :param metal: determines which metals to use, supports ("gold", "silver")
+  :param order: determines the order of the polynomial to fit the data with
+  '''
+  def __init__(self, radius_nm=-1, metal="gold",order=7):
+
     # Constants
     self.pi = np.pi
     self.h = 6.62607015 * 10**(-34) / (2*self.pi)
     self.c = 3 * 10**(8)
     self.e = 1.6 * 10**(-19)
-    self.v_fermi = 14.1*10**(14) #in nm/s
-
-    # Gold Electronic Properties
-    self.gamma_bulk = 1.64 * 10**(14)
-    self.plasma_frequency = 1.3 * 10**(16)
-    
-    # Data taken from https://journals.aps.org/prb/pdf/10.1103/PhysRevB.6.4370
-    self.photon_energy_ev = np.array([0.64,0.77,0.89,1.02,1.14,1.26,1.39,1.51,1.64,1.76,1.88,2.01,2.13,2.26,2.38,2.50,2.63,2.75,2.88,3.00,3.12,3.25,3.37,3.50,3.62,3.74,3.87,3.99,4.12,4.24,4.36,4.49,4.61,4.74,4.86,4.98,5.11,5.23,5.36,5.48,5.60,5.73,5.85,5.98,6.10,6.22,6.35,6.47,6.60], np.float32)
-    self.n = np.array([0.92,0.56,0.43,0.35,0.27,0.22,0.17,0.16,0.14,0.13,0.14,0.21,0.29,0.43,0.62,1.04,1.31,1.38,1.45,1.46,1.47,1.46,1.48,1.50,1.48,1.48,1.54,1.53,1.53,1.49,1.47,1.43,1.38,1.35,1.33,1.33,1.32,1.32,1.30,1.31,1.30,1.30,1.30,1.30,1.33,1.33,1.34,1.32,1.28])
-    self.k = np.array([13.78,11.21,9.519,8.145,7.150,6.350,5.663,5.083,4.542,4.103,3.697,3.272,2.863,2.455,2.081,1.833,1.849,1.914,1.948,1.958,1.952,1.933,1.895,1.866,1.871,1.883,1.898,1.893,1.889,1.878,1.869,1.847,1.803,1.749,1.688,1.631,1.577,1.536,1.497,1.460,1.427,1.387,1.350,1.304,1.277,1.251,1.226,1.203,1.188])
-
-    self.wavelength_in_nm = self.wavelength_in_nm_to_photon_energy_ev(self.photon_energy_ev)
-    self.frequency_rad = self.photon_energy_ev*self.e/self.h
-
-    if verbose:
-      print(f"The model works between {wavelength_in_nm[0]} nm and {wavelength_in_nm[-1]} nm or {photon_energy_ev[0]} eV and {photon_energy_ev[-1]} eV.")
 
     # Model parameters
     self.radius_nm = radius_nm
+    self.order = order
 
-    # elif #data_file is available and radius != -1:
-    #   parameters, covariance = self.get_c_parameter(dielectric_data_data)
-    #   self.c = parameters[0]
-    #   self.error = covariance
-    # else:
-    self.c = 0
+    # Obtain Electronic Properties of the selected metal
+    with open(f"./Models/model_data/{metal}.txt", "r") as file:
+      self.gamma_bulk = float(file.readline())
+      self.plasma_frequency = float(file.readline())
+      self.v_fermi = float(file.readline()) #in nm/s
+      self.D = float(file.readline())
+
+      # If radius of particle is not smaller than free path length then deactivate size-corrections
+      if radius_nm == -1 or radius_nm > 1/self.gamma_bulk:
+        self.D = 0
+      
+      # Data required to obtain bound electron component which is assumed size independent
+      self.photon_energy_ev = np.array(list(file.readline().split(","))[:-1], np.float32)
+      self.n = np.array(list(file.readline().split(","))[:-1], np.float32)
+      self.k = np.array(list(file.readline().split(","))[:-1], np.float32)
+    
+    # Used for scale of graph and the parameter of the polynomial fitted functions
+    self.wavelength_in_nm = self.wavelength_in_nm_to_photon_energy_ev(self.photon_energy_ev)
+    # Used for calculation of free dielectric component
+    self.frequency_rad = self.photon_energy_ev*self.e/self.h
 
     ## Optical constants
-    # Calculate dielectric function from refractive index
-    self.dielectric_data = self.calc_dielectric_data_from_n_and_k(self.n, self.k)
-    # Get free component from Drude's model
+    # Calculate dielectric function from refractive index, subtract away the free component to get bound component
+    # Calculate size corrected free component then add to size-independent bound component to get size-corrected dielectric functions
+    self.dielectric_data = self.calc_dielectric_data_from_refractive_index(self.n + 1j*self.k)
     self.free_dielectric_data = self.calc_free_dielectric_data(self.frequency_rad)
-    # Get bound component by subtracting free component from total
     self.bound_dielectric_data = self.dielectric_data - self.free_dielectric_data
-    # Get size corrected free component
-    self.corrected_free_dielectric_data = self.calc_corrected_free_dielectric_data(self.frequency_rad, self.c)
-    # Get size corrected dielectric function
+    self.corrected_free_dielectric_data = self.calc_corrected_free_dielectric_data(self.frequency_rad, self.D)
     self.corrected_dielectric_data = self.corrected_free_dielectric_data + self.bound_dielectric_data
-    # Get size corrected refractive index
-    self.corrected_refractive_index = self.calc_refractive_index(self.corrected_dielectric_data)
+    self.corrected_refractive_index = self.calc_refractive_index_from_dielectric_data(self.corrected_dielectric_data)
 
-    self.corrected_free_dielectric_function_wavelength = self.get_poly_fit_function(self.dielectric_data, self.wavelength_in_nm, 7)
-    self.corrected_refractive_index_function_wavelength = self.get_poly_fit_function(self.corrected_refractive_index, self.wavelength_in_nm, 7)
+    # Find dielectric constant and refractive index as analytical functions of wavelength
+    self.corrected_free_dielectric_function_wavelength = self.get_poly_fit_function(self.corrected_dielectric_data, self.wavelength_in_nm, self.order)
+    self.corrected_refractive_index_function_wavelength = self.get_poly_fit_function(self.corrected_refractive_index, self.wavelength_in_nm, self.order)
   
   def photon_energy_ev_to_wavelength_in_nm(self, photon_energy_ev):
+    '''
+    Converts photon energy (eV) to wavelength (nm)
+
+    :param photon_energy_ev: numpy array of or scalar photon energy in electron volts
+    :returns: numpy array of or scalar wavelength in nanometers
+    '''
     return self.c / (photon_energy_ev/self.h*self.e/(2*self.pi))* 10**(9)
 
   def wavelength_in_nm_to_photon_energy_ev(self, wavelength_in_nm):
+    '''
+    Converts wavelength (nm) to photon energy (eV)
+
+    :param wavelength_in_nm: numpy array of or scalar wavelength in nanometers
+    :returns: numpy array of or scalar photon energy in electron volts
+    '''
     return self.c / (wavelength_in_nm/10**9)*2*self.pi/self.e*self.h
 
   def calc_free_dielectric_data(self, frequency_rad):
+    '''
+    Calculates the free component of the dielectric function without size consideration
+
+    :param frequency_rad: numpy array of or scalar frequency in radians
+    :return: numpy array of or scalar free dielectric constant
+    '''
     return 1 - self.plasma_frequency**2 / (frequency_rad**2 + 1j*frequency_rad*self.gamma_bulk)
     #return 1 - self.plasma_frequency**2 / (frequency_rad**2 + self.gamma_bulk**2) + (self.plasma_frequency**2*self.gamma_bulk / (frequency_rad*(frequency_rad**2 + self.gamma_bulk**2)))*1j
   
-  def calc_corrected_free_dielectric_data(self, frequency_rad, c):
-    return 1 - self.plasma_frequency**2 / (frequency_rad**2 + 1j*frequency_rad*(self.gamma_bulk + c*self.v_fermi/self.radius_nm))
+  def calc_corrected_free_dielectric_data(self, frequency_rad, D):
+    '''
+    Calculates the size corrected free component of the dielectric function
 
-  def calc_refractive_index(self, dielectric_data):
+    :param frequency_rad: numpy array of or scalar frequency in radians
+    :param D: constant including details of the scattering process (essentially proportionality constant relating radius of particle to the effective mean free path for collisions with boundary)
+    :return: numpy array of or scalar size-corrected free dielectric constant
+    '''
+    return 1 - self.plasma_frequency**2 / (frequency_rad**2 + 1j*frequency_rad*(self.gamma_bulk + D*self.v_fermi/self.radius_nm))
+
+  def calc_refractive_index_from_dielectric_data(self, dielectric_data):
+    '''
+    Calculates refractive index from dielectric constant
+    :param dielectric_data: numpy array of or scalar dielectric constant
+    :return: numpy array or scalar refractive index
+    '''
     return np.sqrt((np.absolute(dielectric_data)+dielectric_data.real)/2) + np.sqrt((np.absolute(dielectric_data)-dielectric_data.real)/2) * 1j
 
-  def calc_dielectric_data_from_n_and_k(self, n, k):
-    return (n**2 - k**2) + 2j*n*k
-
-  def get_c_parameter(self, dielectric_data):
-    parameters, covariance = curve_fit(self.calc_corrected_free_dielectric_data, self.frequency_rad, self.dielectric_data_data)
-    return parameters, covariance
+  def calc_dielectric_data_from_refractive_index(self, N):
+    '''
+    Calculates dielectric data from the refractive index
+    :param N: numpy array of or scalar refractive indesx
+    :return: numpy array of or scalar dielectric constant
+    '''
+    return (N.real**2 - N.imag**2) + 2j*N.real*N.imag
 
   def get_poly_fit_function(self, y, x, order):
+    '''
+    Obtain an analytical polynomial function of y as a function of x
+    :param y: numpy array of output
+    :param x: numpy array of corresponding inputs
+    :param order: order of the polynomial
+    :return: analytical function 
+    '''
     z = np.polyfit(x, y, order)
     return np.poly1d(z)
 
   def plot_optical_constants(self, x_limits=(), y_limits=(-7, 7), use_wavelength=False):
+    '''
+    Plots a graph of the real and imaginary value of the dielectric constant and that of the refractive index against photon energy (eV) or wavelength (nm)
+    :param x_limits: tuple of lower and upper bound for the photon energy or wavelength
+    :param y_limits: tuple of lower and upper bound for the dielectric constant and refractive index
+    :use_wavelength: boolean, determines whether x-axis is wavelength or photon energy
+    '''
     ## Plotting
     fig, ax = plt.subplots(2, 1, sharex=True)
 
-    # Change x_axis and plot of functions accordingly
+    # Change x_axis accordingly
     if use_wavelength:
       x_axis = self.wavelength_in_nm
       x_new = np.linspace(x_axis[0], x_axis[-1], 100)
@@ -103,8 +158,8 @@ class Drude_Gold():
     else:
       x_axis = self.photon_energy_ev
       x_new = np.linspace(x_axis[0], x_axis[-1], 100)
-      corrected_free_dielectric_function = self.get_poly_fit_function(self.corrected_dielectric_data, self.photon_energy_ev, 7)(x_new)
-      corrected_refractive_index_function = self.get_poly_fit_function(self.corrected_refractive_index, self.photon_energy_ev, 7)(x_new)
+      corrected_free_dielectric_function = self.get_poly_fit_function(self.corrected_dielectric_data, self.photon_energy_ev, self.order)(x_new)
+      corrected_refractive_index_function = self.get_poly_fit_function(self.corrected_refractive_index, self.photon_energy_ev, self.order)(x_new)
 
     # Set custom limit if provided
     if x_limits == ():
@@ -140,18 +195,19 @@ class Drude_Gold():
     ax[1].set_ylim(0, y_limits[1])
 
     # Set up secondary x-axis
-    # if use_wavelength:
-    #   secax = ax[0].secondary_xaxis("top", functions=(self.wavelength_in_nm_to_photon_energy_ev, self.photon_energy_ev_to_wavelength_in_nm))
-    # else:
-    #   secax = ax[0].secondary_xaxis("top", functions=(self.photon_energy_ev_to_wavelength_in_nm, self.wavelength_in_nm_to_photon_energy_ev))
-    # secax.set_xlabel("Wavelength (nm)")
-    # secax.tick_params(axis="x", rotation=45)
-    # secax.minorticks_on()
+    if use_wavelength:
+      secax = ax[0].secondary_xaxis("top", functions=(self.wavelength_in_nm_to_photon_energy_ev, self.photon_energy_ev_to_wavelength_in_nm))
+      secax.set_xlabel("Photon Energy (ev)")
+    else:
+      secax = ax[0].secondary_xaxis("top", functions=(self.photon_energy_ev_to_wavelength_in_nm, self.wavelength_in_nm_to_photon_energy_ev))
+      secax.set_xlabel("Wavelength (nm)")
+      secax.tick_params(axis="x", rotation=45)
+    secax.minorticks_on()
 
     plt.show()
 
 if __name__ == "__main__":
   # wavelength_range = np.linspace(200, 1000, 100)
   # photon_energy_ev = np.linspace(1, 6, 100)
-  model = Drude_Gold(radius_nm=1)
+  model = Drude(radius_nm=1, metal="silver")
   model.plot_optical_constants(y_limits=(-50, 10), use_wavelength=True)

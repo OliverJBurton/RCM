@@ -1,17 +1,17 @@
 from miepython import mie
 import numpy as np
 import matplotlib.pyplot as plt
-from drude import Drude_Gold
+from drude import Drude
 from mie_eqns import calc_extinction_coefficient_for_sphere
 
 radius = 40*10**(-9)
-refractive_index_model = Drude_Gold()
+refractive_index_model = Drude()
 
 wavelength_range = refractive_index_model.wavelength_in_nm
 new_wavelength_range = np.linspace(wavelength_range[0], wavelength_range[-1], 300)
 medium_refractive_index = np.sqrt(2.25)
 refractive_index = refractive_index_model.corrected_refractive_index_function_wavelength(new_wavelength_range)
-particle_refractive_index = refractive_index.real - 1j*refractive_index.imag # remember convention is negative imaginary part
+particle_refractive_index = refractive_index.real + 1j*refractive_index.imag 
 complex_refractive_index = particle_refractive_index/medium_refractive_index
 size_parameter = 2*np.pi*radius*medium_refractive_index/new_wavelength_range
 #qext, qsca, qback, g = mie(complex_refractive_index, size_parameter)
