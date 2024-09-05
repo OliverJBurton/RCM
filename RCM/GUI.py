@@ -11,7 +11,11 @@ from PIL import ImageTk, Image
 import os
 import ctypes
 
-class ImageGUI(tk.Toplevel):
+class _ImageGUI(tk.Toplevel):
+  '''
+  Pop-up window that displays an image in a larger size
+  Can navigate through the gallery of images
+  '''
   def __init__(self, image_path, image_path_list):
     super().__init__()
     self.title(image_path.split(".", 1)[0])
@@ -111,6 +115,11 @@ class ImageGUI(tk.Toplevel):
     self.destroy()
 
 class ImageDisplayGUI(tk.Tk):
+  '''
+  Image gallery, can click on each image to expand image
+
+  :param image_path_list: a list of paths to the images to be displayed on the gallery
+  '''
   def __init__(self, image_path_list):  
     super().__init__()
     self.title("Image Display")
@@ -130,7 +139,9 @@ class ImageDisplayGUI(tk.Tk):
     self.scrollable_frame.pack(pady=10, padx=10, expand=True, fill="both")
     self.panel = customtkinter.CTkFrame(self.scrollable_frame)
 
+    # Update image displayed in gallery
     self.after(100, self.display_images)
+    # Updates number of columns the photos are displayed in if window size has changed
     self.after(100, self.update_scrollable_frame)
     self.mainloop()
   
@@ -199,18 +210,33 @@ class ImageDisplayGUI(tk.Tk):
     '''
     Opens up window to display each image individually
     '''
-    self.image_screen = ImageGUI(event.widget.cget("text"), self.image_path_list)
+    self.image_screen = _ImageGUI(event.widget.cget("text"), self.image_path_list)
 
 class _CallData:
+  '''
+  Used to encapsulate the function and its argument sent from a daemon thread to the main thread to execute it in the main thread
+  '''
   def __init__(self, fn, args, kwargs):
     self.fn = fn
     self.args = args
     self.kwargs = kwargs
 
 class ExperimentGUI(tk.Tk):
+  '''
+
+  Window used to control what is displayd on the HDMI screen of the microscope to do experiments
+  Experiment 1: determine the relationship between intensity of light on the sample with respect to the greyscale of the image taken by the camera
+  Experiment 2: determine the relationship between the change in intensity of light on the sample as blocks of pixels are turned off
+  Works only on Windows
+
+  :param step: interval between each greyscale value
+
+  '''
   def __init__(self, step=5, xNum=5, yNum=5):
     super().__init__()
+    # Removes title menu so that screen is not obscured
     self.overrideredirect(True)
+    
     self.title("Experiment")
     self.columnconfigure(0, weight=1)
     self.rowconfigure(0, weight=1)
@@ -354,8 +380,8 @@ class ExperimentGUI(tk.Tk):
   
 if __name__ == "__main__":
   # screen1 = ImageDisplayGUI()
-  screen2 = ExperimentGUI()
-  screen2.greyscale_intensity_experiment_thread.start()
-  screen2.mainloop()
+  # screen2 = ExperimentGUI()
+  # screen2.greyscale_intensity_experiment_thread.start()
+  # screen2.mainloop()
 
   #print(screen.intensity_readings)

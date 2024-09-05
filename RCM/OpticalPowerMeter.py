@@ -21,19 +21,37 @@ class PM16_120:
       print("Power meter not found. Did you plug it in?")
 
   def get_power_reading_W(self):
+    '''
+    Gets light intensity reading from the PM16-120
+
+    :returns: light intensity in watts
+
+    '''
     return self.inst.query("Read?")
 
-  def set_wavelength(self, wavelength):
-    # Checks if wavelength is within limit of device
-    if not 400 <= wavelength <= 1100:
-      raise ValueError("{} nm is not in [400, 1100] nm range".format(wavelength))
+  def set_wavelength(self, wavelength_nm):
+    '''
+    Sets wavelength of the PM16-120
 
-    self.inst.write("SENS:CORR:WAV {}".format(wavelength))
+    :param wavelength_nm: wavelength in nanometers
+
+    '''
+    # Checks if wavelength is within limit of device
+    if not 400 <= wavelength_nm <= 1100:
+      raise ValueError("{} nm is not in [400, 1100] nm range".format(wavelength_nm))
+
+    self.inst.write("SENS:CORR:WAV {}".format(wavelength_nm))
 
   def get_wavelength_setting(self):
-    wavelength = float(self.inst.query("SENS:CORR:WAV?"))
-    print(f"Wavelength is set to {wavelength} nm")
-    return wavelength
+    '''
+    Prints and returns the wavelength of the PM16-120
+
+    :return wavelength_nm: wavelength in nanometers
+
+    '''
+    wavelength_nm = float(self.inst.query("SENS:CORR:WAV?"))
+    print(f"Wavelength is set to {wavelength_nm} nm")
+    return wavelength_nm
 
 if __name__ == "__main__":
   light_reader = PM16_120()
