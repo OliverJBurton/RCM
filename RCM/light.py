@@ -20,13 +20,20 @@ class DC2200:
 
     def set_brightness(self,percent=1.1):
         # The command instr.write can be used to write data to the device when you do not expect a response from the device.
-        # Set the DC2200 to constant current mode, set the current, switch the LED on.
+        # Set the DC2200 to brightness mode, set the brightness level, switch the LED on.
         # see DC2200 documentation
         self.instr.write("SOURCE1:MODE CB")
         command = "SOURCE1:CBRIGHTNESS:BRIGHTNESS " + str(percent)
         self.instr.write(command)
         print('Set brightness to ' + str(percent) + '%')
+    
+    def set_current(self, current_mA):
+        # Set the DC2200 to constant current mode, set the current level, switch the LED on.
 
+        self.instr.write("SOURCE1:MODE 1")
+        self.instr.write(f"SOURCE1:CCURRENT:CURRENT {current_mA}")
+        print(f"Set current to {current_mA} mA")
+    
     def on(self):
         '''
         Switches LED on
