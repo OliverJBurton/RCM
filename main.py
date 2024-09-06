@@ -8,6 +8,11 @@ sys.path.append('../RCM/RCM')
 from RCM import FullControlMicroscope
 from OpticalPowerMeter import PM16_120
 
+'''
+Note due to setting the Oceandirect SDK as content root so that it can be imported, 
+whenever specifying file path, use the file path from root
+'''
+
 if __name__ == '__main__':
     # cam = Camera_HS()
     # img = cam.single_exposure(exposure_time=0.654e-3)

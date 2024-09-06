@@ -40,7 +40,7 @@ class Drude():
     self.order = order
 
     # Obtain Electronic Properties of the selected metal
-    with open(f"./Models/model_data/{metal}.txt", "r") as file:
+    with open(f"C:\\Users\\whw29\\Desktop\\RCM\\Models\\model_data\\{metal}.txt", "r") as file:
       self.gamma_bulk = float(file.readline())
       self.plasma_frequency = float(file.readline())
       self.v_fermi = float(file.readline()) #in nm/s

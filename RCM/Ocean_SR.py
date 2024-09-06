@@ -1,5 +1,6 @@
 
-from oceandirect.OCeanDirectAPI import OceanDirectAPI, OceanDirectError, FeatureID
+from oceandirect.OceanDirectAPI import OceanDirectAPI, OceanDirectError, FeatureID
+import matplotlib.pyplot as plt
 
 
 #Spectrometer code to input gain, exposure time, repeats to return counts vs wavelength
@@ -9,6 +10,7 @@ from oceandirect.OCeanDirectAPI import OceanDirectAPI, OceanDirectError, Feature
 
 class Ocean_Spectrometer(OceanDirectAPI):
   def __init__(self):
+    super().__init__()
     try:
       device_count = self.find_usb_devices()
 
@@ -34,7 +36,7 @@ class Ocean_Spectrometer(OceanDirectAPI):
     self.close_device(self.device_id)
     self.shutdown()
   
-  def read_spectra(integrationTimeUs: int, spectraToRead: int):
+  def read_spectra(self, exposure_time_Us: int, num_average: int):
     # Do a set scan to average
 
     '''
@@ -46,15 +48,26 @@ class Ocean_Spectrometer(OceanDirectAPI):
     '''
 
     try:
-      self.device.set_integration_time(integrationTimeUs)
+      self.device.set_integration_time(exposure_time_Us)
+      self.device.set_scans_to_average(num_average)
 
-      output = []
-      for i in range(spectraToRead):
-        spectra = device.get_formatted_spectrum()
-        output.append(spectra)
-      
-      return output
+      wavelengths = self.device.get_wavelengths()
+      spectra = self.device.get_formatted_spectrum()
+
+      return wavelengths, spectra
     except OceanDirectError as err:
       [errorCode, errorMsg] = err.get_error_details()
       print(f"Ocean_Spectrometer.read_spectra() exception: {errorCode} | {errorMsg}")
+
+
+if __name__ == "__main__":
+  device = Ocean_Spectrometer()
+  wavelengths, output = device.read_spectra(100000, 5)
+
+  plt.plot(wavelengths, output)
+  plt.xlabel("Wavelengths")
+  plt.ylabel("Counts")
+  plt.show()
+
+
 
