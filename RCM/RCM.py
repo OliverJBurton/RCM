@@ -14,7 +14,7 @@ import cv2
 import imageio
 
 class FullControlMicroscope:
-    def __init__(self, wavelength_range=[420, 730], no_spectra=5, exposure_time=0.0, save_folder=""):
+    def __init__(self, wavelength_range=[420, 730], no_spectra=5, exposure_time=0.0, save_folder="", check_stage=True):
         self.wavelength_range = wavelength_range
         self.no_spectra = no_spectra
         self.exposure_time = exposure_time
@@ -42,7 +42,8 @@ class FullControlMicroscope:
                               very_verbose=False)
         print('stage connected')
 
-        self.stage_check()
+        if check_stage:
+            self.stage_check()
 
     def stage_check(self):
         print("Please ensure the position values of each motor are within their respective limits. If not, move the stage back to it's unextended position to recalibrate its zero position. Also do this if the zero position of the stage has been altered on the MCM3000 Microscopy Controllers Software.")

@@ -379,6 +379,7 @@ class ExperimentGUI(tk.Tk):
     self.make_call(self.destroy)
   
 if __name__ == "__main__":
+  pass
   # screen1 = ImageDisplayGUI()
   # screen2 = ExperimentGUI()
   # screen2.greyscale_intensity_experiment_thread.start()

@@ -27,7 +27,7 @@ class PM16_120:
     :returns: light intensity in watts
 
     '''
-    return self.inst.query("Read?")
+    return float(self.inst.query("Read?"))
 
   def set_wavelength(self, wavelength_nm):
     '''

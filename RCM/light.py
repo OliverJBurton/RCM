@@ -27,11 +27,16 @@ class DC2200:
         self.instr.write(command)
         print('Set brightness to ' + str(percent) + '%')
     
-    def set_current(self, current_mA):
+    def set_current_mA(self, current_mA):
         # Set the DC2200 to constant current mode, set the current level, switch the LED on.
+        if current_mA < 0:
+            raise ValueError("Current must be positive!")
+        elif current_mA > 1000:
+            print("Maximum of 1000 mA exceeded, setting value to 1000 mA")
+            current_mA = 1000
 
         self.instr.write("SOURCE1:MODE 1")
-        self.instr.write(f"SOURCE1:CCURRENT:CURRENT {current_mA}")
+        self.instr.write(f"SOURCE1:CCURENT:CURRENT {current_mA/1000}")
         print(f"Set current to {current_mA} mA")
     
     def on(self):
@@ -61,14 +66,8 @@ class DC2200:
 if __name__ == '__main__':
     print('connecting')
     light = DC2200()
-    light.set_brightness(0.5)
+    light.set_current_mA(1200)
     light.on()
-    time.sleep(1)
-    light.set_brightness(1.5)
-    time.sleep(1)
-    light.set_brightness(2.0)
-    time.sleep(1)
-    light.set_brightness(1.9)
-    time.sleep(1)
+    time.sleep(5)
     light.off()
     light.close()
