@@ -3,7 +3,7 @@ import tkinter as tk
 from time import sleep
 from threading import Thread, Event
 from queue import Empty, Queue
-#from OpticalPowerMeter import PM100
+from OpticalPowerMeter import PM16_120
 import sys
 import customtkinter
 import numpy as np
@@ -232,10 +232,10 @@ class ExperimentGUI(tk.Tk):
   :param step: interval between each greyscale value
 
   '''
-  def __init__(self, step=5, xNum=5, yNum=5):
+  def __init__(self, step=5, kernel_x=5, kernel_y=5):
     super().__init__()
     # Removes title menu so that screen is not obscured
-    self.overrideredirect(True)
+    #self.overrideredirect(True)
     
     self.title("Experiment")
     self.columnconfigure(0, weight=1)
@@ -246,16 +246,16 @@ class ExperimentGUI(tk.Tk):
     self.canvas.pack(fill="both", expand=True)
 
     # Initialise power meter
-    #self.power_meter = PM100()
+    self.power_meter = PM16_120()
 
     # Create event queue
     self.request_queue = Queue()
 
     # Pixel intensity experiment parameters
-    self.xNum = xNum
-    self.yNum = yNum
+    self.kernel_x = kernel_x
+    self.kernel_y = kernel_y
     self.rectangle = None
-    self.intensity_readings = [[0 for i in range(self.yNum)] for j in range(self.xNum)]
+    self.intensity_readings = []
     # Creates a daemon thread for the pixel intensity experiment to run in the background 
     self.pixel_intensity_experiment_thread = Thread(target=self.pixel_intensity_experiment, daemon=True)
 
@@ -292,7 +292,7 @@ class ExperimentGUI(tk.Tk):
     Moves the rectangle to the new coordinate (x_coord, y_coord)
     '''
     self.canvas.moveto(self.rectangle, x_coord, y_coord)
-  
+
   def end_experiment(self):
     '''
     Destroys window
@@ -356,33 +356,36 @@ class ExperimentGUI(tk.Tk):
     # Full screen
     self.make_call(self.activate_full_screen)
 
-    # Create list of dimensions for the corner of each pixel block
-    x_coords = np.linspace(0, self.canvas.winfo_screenwidth(), self.xNum, endpoint=False)
-    y_coords = np.linspace(0, self.canvas.winfo_screenheight(), self.yNum, endpoint=False)
-
-    # Measure total intensity of light
-    #full_brightness_reading = self.power_meter.read()
+    # Create list of dimensions for the corner of each pixel block, additional +1 as upper bound is included
+    x_coords = np.arange(0, self.canvas.winfo_screenwidth() + 2 - self.kernel_x, step=500, dtype=int)
+    y_coords = np.arange(0, self.canvas.winfo_screenheight() + 2 - self.kernel_y, step=500, dtype=int)
 
     # Request main thread to initialise a block of darkened pixels
-    self.make_call(self.initialise_rectangle, x_coords[1], y_coords[1])
+    self.make_call(self.initialise_rectangle, self.kernel_x, self.kernel_y)
 
     # Loop through the all possible locations of the pixel block
     for y_coord in y_coords:
+      # To store a width of intensity values
+      temp = []
       for x_coord in x_coords:
         # Request main thread to move the block of darkened pixels
         self.make_call(self.move_rectangle, x_coord, y_coord)
-        time.sleep(1)
-        # Record change in intensity 
-        #self.intensity_readings[x_coord][y_coord] = full_brightness_reading - self.power_meter.read()
+
+        temp.append(self.power_meter.get_power_reading_W_str())
+      self.intensity_readings.append(temp)
+
     # Request main thread to end experiment
     print("End Experiment")
     self.make_call(self.destroy)
   
 if __name__ == "__main__":
-  pass
   # screen1 = ImageDisplayGUI()
-  # screen2 = ExperimentGUI()
-  # screen2.greyscale_intensity_experiment_thread.start()
-  # screen2.mainloop()
+  screen2 = ExperimentGUI(kernel_x=400, kernel_y=400)
+  screen2.pixel_intensity_experiment_thread.start()
+  screen2.mainloop()
+
+  with open("pixel_intensity_readings.txt", "a") as file:
+    for line in screen2.intensity_readings:
+      file.write(','.join(line) + "\n")
 
   #print(screen.intensity_readings)

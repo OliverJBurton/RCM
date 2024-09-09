@@ -6,7 +6,7 @@ k = np.array([0.24,0.15,0.13,0.09,0.04,0.04,0.04,0.04,0.03,0.04,0.05,0.06,0.05,0
 print(len(photon_energy_ev))
 
 with open("./Models/model_data/.txt", "a") as file:
-  for item in :
+  for item in photon_energy_ev:
     file.write(f"{item},")
   file.write("\n")
 

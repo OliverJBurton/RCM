@@ -68,24 +68,23 @@ class FullControlMicroscope:
         self.sta.close()
         self.lcf.close()
 
-    def obtain_intensity_pixel_matrix(self, xNum=20, yNum=20):
+    def obtain_intensity_pixel_matrix(self, kernel_x=3, kernel_y=3):
         '''
-        Determines how each block of pixel on the screen affects the light intensity incident on the sample. Note the canvas width and height should be multiples of xNum and yNum respectively.
+        Convolves a kernel across the screen and measures the light intensity to determine the distribution of intensities
         Sets the parameter intensity_loss_pixel_matrix
 
-        :param xNum: splits the width of the canvas into xNum blocks
-        :param yNum: splits the height of the canvas into yNum blocks
+        :param kernel_x: x dimension of kernel
+        :param yNum: y dimension of kernel
         '''
 
         # Add something to open and move inkscape to the 3rd screen or tell user to do it
         # https://github.com/spakin/SimpInkScr/wiki/Modifying-existing-objects
 
-        experiment_screen = ExperimentGUI(xNum=xNum, yNum=yNum)
+        experiment_screen = ExperimentGUI(kernel_x=kernel_x, kernel_y=kernel_y)
         experiment_screen.pixel_intensity_experiment_thread.start()
         experiment_screen.mainloop()
         
         self.intensity_loss_pixel_matrix = experiment_screen.intensity_readings
-        np.savetxt("intensity_pixel_data.txt", self.intensity_loss_pixel_matrix)
 
     def greyscale_intensity_relationship(self, step=5):
         '''

@@ -20,14 +20,14 @@ class PM16_120:
     except:
       print("Power meter not found. Did you plug it in?")
 
-  def get_power_reading_W(self):
+  def get_power_reading_W_str(self):
     '''
     Gets light intensity reading from the PM16-120
 
     :returns: light intensity in watts
 
     '''
-    return float(self.inst.query("Read?"))
+    return self.inst.query("Read?")
 
   def set_wavelength(self, wavelength_nm):
     '''
