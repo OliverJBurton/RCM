@@ -8,17 +8,19 @@ class PM16_120:
   '''
   def __init__(self):
     self.rm = visa.ResourceManager()
+    print(self.rm.list_resources())
     try:
       # Value inside brackets must be address of the USB port
       # Use print(self.rm.list_resources()) to determine port address
-      self.inst = self.rm.open_resource("USB0::0x1313::0x807B::230620213::INSTR")
-      try:
-        # Prints identification number if device is connected
-        print(f"Power meter is online: {self.inst.query('*IDN?')}")
-      except TimeoutError:
-        print("Power meter failed to initialise")
+      self.inst = self.rm.open_resource('USB0::0x1313::0x807B::230620213::INSTR')
     except:
       print("Power meter not found. Did you plug it in?")
+
+    try:
+      # Prints identification number if device is connected
+      print(f"Power meter is online: {self.inst.query('*IDN?')}")
+    except TimeoutError:
+      print("Power meter failed to initialise")
 
   def get_power_reading_W_str(self):
     '''
@@ -27,7 +29,7 @@ class PM16_120:
     :returns: light intensity in watts
 
     '''
-    return self.inst.query("Read?")
+    return self.inst.query("Read?").rstrip("\n")
 
   def set_wavelength(self, wavelength_nm):
     '''
@@ -57,7 +59,7 @@ if __name__ == "__main__":
   light_reader = PM16_120()
   light_reader.set_wavelength(405)
   light_reader.get_wavelength_setting()
-  print(light_reader.get_power_reading_W())
+  print(light_reader.get_power_reading_W_str())
   # print(light_reader.read())
 
 
