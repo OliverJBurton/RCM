@@ -1,6 +1,6 @@
 import time
 import tkinter as tk
-from threading import Thread
+from threading import Thread, Event
 from queue import Empty, Queue
 from OpticalPowerMeter import PM16_120
 import customtkinter
@@ -229,6 +229,7 @@ class _CallData:
     self.fn = fn
     self.args = args
     self.kwargs = kwargs
+    self.reply_event = Event()
 
 class ExperimentGUI(tk.Tk):
   '''
@@ -239,17 +240,18 @@ class ExperimentGUI(tk.Tk):
   :param do_overrideredirect: removes the taskbar and makes screen unresponsive, used to full-screen. 
   :param grid_layout: number of columns and rows of the screen. 1 is the minimum.
   '''
-  def __init__(self, exp_screen_res=(1280, 720), greyscale=255, do_overrideredirect=True, grid_layout=(1, 1)):
+  def __init__(self, exp_screen_res=(1280, 720), greyscale=255, do_overrideredirect=True, grid_layout=(1, 1), refresh_rate_ms=3):
     super().__init__()
 
     self.exp_screen_res = exp_screen_res
     self.do_overrideredirect = do_overrideredirect
+    self.refresh_rate_ms = refresh_rate_ms
 
     self.title("Experiment")
     self.columnconfigure([i for i in range(grid_layout[0])], weight=1)
     self.rowconfigure([i for i in range(grid_layout[1])], weight=1)
     # Initialise canvas that will fill the whole window and expands if the window does
-    self.canvas = tk.Canvas(self, bg="#{0:X}{0:X}{0:X}".format(greyscale),highlightthickness=0)
+    self.canvas = tk.Canvas(self, bg=f"#{greyscale:02X}{greyscale:02X}{greyscale:02X}",highlightthickness=0)
     self.canvas.pack(fill="both", expand=True)
 
     # Initialise power meter
@@ -286,11 +288,12 @@ class ExperimentGUI(tk.Tk):
       data = self.request_queue.get_nowait()
       # Runs the function stored in the event queue
       data.fn(*data.args, *data.kwargs)
+      data.reply_event.set()
     except Empty:
       pass
 
     # Reschedules this function to run again after 500ms
-    self.after(500, self.call_handler)
+    self.after(self.refresh_rate_ms, self.call_handler)
   
   def make_call(self, fn, *args, **kwargs):
     '''
@@ -300,6 +303,7 @@ class ExperimentGUI(tk.Tk):
     data = _CallData(fn, args, kwargs)
     # Put onto event queue
     self.request_queue.put(data)
+    data.reply_event.wait()
 
 class PixelIntensityExperiment(ExperimentGUI):
   '''
@@ -322,7 +326,7 @@ class PixelIntensityExperiment(ExperimentGUI):
     self.pixel_intensity_experiment_thread = Thread(target=self.pixel_intensity_experiment, daemon=True)
     self.pixel_intensity_experiment_thread.start()
 
-    self.after(100, self.call_handler)
+    self.after(self.refresh_rate_ms, self.call_handler)
 
   def move_rectangle(self, x_coord, y_coord):
     '''
@@ -354,8 +358,6 @@ class PixelIntensityExperiment(ExperimentGUI):
         # Request main thread to move the block of darkened pixels
         self.make_call(self.move_rectangle, x_coord, y_coord)
 
-        time.sleep(0.15)
-
         temp.append(self.power_meter.get_power_reading_W_str())
       # Write data to textfile
       with open("pixel_intensity_readings.txt", "a") as file:
@@ -377,19 +379,22 @@ class PixelIntensityExperiment(ExperimentGUI):
         lines = file.readlines()
         for line in lines:
           data.append(list(line.split(","))[:-1])
-      data = np.array(data)
+      data = np.array(data, dtype=np.float32)
     elif self.intensity_readings != []:
-      data = np.array(self.intensity_readings)
+      data = np.array(self.intensity_readings, dtype=np.float32)
     else:
       print("No data available to plot!")
       return
-    
+
+    plt.contour(data, levels=20)
+    plt.show()
+
     kernel = np.ones((3,3), dtype=int)
     full_intensity_array = restoration.richardson_lucy(data, kernel, num_iter=30)
-    len_x, len_y = full_intensity_array.shape
-    x_axis, y_axis = np.meshgrid(np.linspace(0,len_x), np.linspace(0,len_y))
+    # len_x, len_y = full_intensity_array.shape
+    # x_axis, y_axis = np.meshgrid(np.linspace(0,len_x), np.linspace(0,len_y))
 
-    plt.contour(x_axis, y_axis, full_intensity_array, levels=20)
+    plt.contour(full_intensity_array, levels=20)
     plt.show()
 
 class GreyScaleIntensityExperiment(ExperimentGUI):
@@ -399,6 +404,7 @@ class GreyScaleIntensityExperiment(ExperimentGUI):
   :param step: the interval between greyscale values wherein measurements are taken
   '''
   def __init__(self, step=5):
+    super().__init__()
 
     # Greyscale intensity experiment parameters
     self.step = step
@@ -407,13 +413,13 @@ class GreyScaleIntensityExperiment(ExperimentGUI):
     self.greyscale_intensity_experiment_thread = Thread(target=self.greyscale_intensity_experiment, daemon=True)
     self.greyscale_intensity_experiment_thread.start()
 
-    self.after(100, self.call_handler)
+    self.after(self.refresh_rate_ms, self.call_handler)
   
   def set_greyscale(self, greyscale):
     '''
     Sets the luminance of the greyscale background image
     '''
-    self.canvas.config(bg="#{0:X}{0:X}{0:X}".format(greyscale))
+    self.canvas.config(bg=f"#{greyscale:02X}{greyscale:02X}{greyscale:02X}")
 
   def greyscale_intensity_experiment(self):
     '''
@@ -424,14 +430,13 @@ class GreyScaleIntensityExperiment(ExperimentGUI):
     print("Begin Experiment")
 
     # Full screen and wait until full screen process is finished
-    self.make_call(self.activate_full_screen, True)
+    self.make_call(self.activate_full_screen)
     time.sleep(1)
     
     # Loops through the greyscale range starting from white
     for i in range(255, 0, -self.step):
       # Request main thread to update the greyscale
       self.make_call(self.set_greyscale, i)
-      time.sleep(0.2)
       # Take readings
       self.greyscale_intensity_readings.append([i, float(self.power_meter.get_power_reading_W_str())])
     
@@ -468,9 +473,12 @@ class GreyScaleIntensityExperiment(ExperimentGUI):
     plt.ylabel("Light Intensity (W)")
     plt.show()
 
-  
-
 
 if __name__ == "__main__":
-  pass
+  experiment = PixelIntensityExperiment()
+  experiment.mainloop()
+  experiment.deconvolve_and_plot_pixel_intensity(fileName="pixel_intensity_readings.txt")
 
+  # experiment = GreyScaleIntensityExperiment(step=1)
+  # experiment.mainloop()
+  # experiment.plot_greyscale_intensity()
