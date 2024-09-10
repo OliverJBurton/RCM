@@ -7,8 +7,16 @@ import customtkinter
 import numpy as np
 from PIL import Image, ImageTk
 import matplotlib.pyplot as plt
+
+from skimage import restoration
 """
 Note resolution of experiment screen is 1280 x 720
+Note greyscale is inverted on the projector to that on the main screen
+
+To open a blank black (on the projector, appears white on the main screen) screen that you can move around, do:
+screen = ExperimentGUI(do_overridedirect=False)
+screen.active_fullscreen()
+screen.mainloop()
 
 """
 
@@ -213,28 +221,6 @@ class ImageDisplayGUI(tk.Tk):
     '''
     self.image_screen = _ImageGUI(event.widget.cget("text"), self.image_path_list)
 
-class ExperimentGridGUI(tk.Tk):
-  def __init__(self, grid_layout=(100, 100), grayscale=255):
-    super().__init__()
-
-    self.exp_screen_res = exp_screen_res
-
-    self.title("Grid Screen")
-    self.columnconfigure([i for i in range(grid_layout[0])], weight=1)
-    self.rowconfigure([i for i in range(grid_layout[1])], weight=1)
-    # Initialise canvas that will fill the whole window and expands if the window does
-    self.canvas = tk.Canvas(self, highlightthickness=0)
-    self.canvas.pack(fill="both", expand=True)
-    # Create greyscale image and overlay over whole canvas
-    self.img = np.zeros([self.exp_screen_res[1], self.exp_screen_res[0]], dtype=np.uint8)
-    self.img.fill(greyscale)
-    self.bg_img = ImageTk.PhotoImage(Image.fromarray(self.img, mode="L"))
-    self.canvas.create_image(0, 0, anchor="nw", image=self.bg_img)
-
-    # Create the daemon that does the following:
-    # Layout black rectangles all across grid
-    # Take hyperspectral readings
-
 class _CallData:
   '''
   Used to encapsulate the function and its argument sent from a daemon thread to the main thread to execute it in the main thread
@@ -244,95 +230,53 @@ class _CallData:
     self.args = args
     self.kwargs = kwargs
 
-class AutoExperimentGUI(tk.Tk):
+class ExperimentGUI(tk.Tk):
   '''
+  Opens a GUI that is displayed on the projector. Colors are inverted on the projector. Fullscreen only works only on Windows.
 
-  Window used to control what is displayed on the HDMI screen of the microscope to do experiments
-  Experiment 1: determine the relationship between intensity of light on the sample with respect to the greyscale of the image taken by the camera
-  Experiment 2: determine the relationship between the change in intensity of light on the sample as blocks of pixels are turned off
-  Works only on Windows
-
-  :param step: interval between each greyscale value
-
+  :param exp_screen_res: resolution of the display of the projector
+  :param greyscale: greyscale of the image on the main screen. Will be inverted on the projector, i.e. 255 is equivalent to 0
+  :param do_overrideredirect: removes the taskbar and makes screen unresponsive, used to full-screen. 
+  :param grid_layout: number of columns and rows of the screen. 1 is the minimum.
   '''
-  def __init__(self, exp_screen_res=(1280, 720), step=5, kernel_x=5, kernel_y=5):
+  def __init__(self, exp_screen_res=(1280, 720), greyscale=255, do_overrideredirect=True, grid_layout=(1, 1)):
     super().__init__()
 
     self.exp_screen_res = exp_screen_res
+    self.do_overrideredirect = do_overrideredirect
 
     self.title("Experiment")
-    self.columnconfigure(0, weight=1)
-    self.rowconfigure(0, weight=1)
+    self.columnconfigure([i for i in range(grid_layout[0])], weight=1)
+    self.rowconfigure([i for i in range(grid_layout[1])], weight=1)
     # Initialise canvas that will fill the whole window and expands if the window does
-    self.canvas = tk.Canvas(self, highlightthickness=0)
+    self.canvas = tk.Canvas(self, bg="#{0:X}{0:X}{0:X}".format(greyscale),highlightthickness=0)
     self.canvas.pack(fill="both", expand=True)
-    # Create greyscale image and overlay over whole canvas
-    self.img = np.zeros([self.exp_screen_res[1], self.exp_screen_res[0]], dtype=np.uint8)
-    self.img.fill(255)
-    self.bg_img = ImageTk.PhotoImage(Image.fromarray(self.img, mode="L"))
-    self.canvas.create_image(0, 0, anchor="nw", image=self.bg_img)
 
     # Initialise power meter
     self.power_meter = PM16_120()
 
     # Create event queue
     self.request_queue = Queue()
-
-    # Pixel intensity experiment parameters
-    self.kernel_x = kernel_x
-    self.kernel_y = kernel_y
-    self.rectangle = None
-    self.intensity_readings = []
-    # Creates a daemon thread for the pixel intensity experiment to run in the background 
-    self.pixel_intensity_experiment_thread = Thread(target=self.pixel_intensity_experiment, daemon=True)
-
-    # Greyscale intensity experiment parameters
-    self.step = step
-    self.greyscale_intensity_readings = []
-    # Creates a daemon thread for the greyscale intensity experiment to run in the background
-    self.greyscale_intensity_experiment_thread = Thread(target=self.greyscale_intensity_experiment, daemon=True)
-
-    # Checks the event queue every 500 ms
-    self.after(500, self.call_handler)
-
-  def activate_full_screen(self, do_overrideredirect=True):
+  
+  ## Normal Functions
+  def activate_full_screen(self):
     '''
     Turns the window into a fullscreen
 
     :param do_overrideredirect: removes title menu but prevents screen from responding
     '''
     # Removes title menu so that screen is not obscured
-    self.overrideredirect(do_overrideredirect)
+    self.overrideredirect(self.do_overrideredirect)
 
     self.geometry('%dx%d%+d+%d'%(self.exp_screen_res[0], self.exp_screen_res[1], -self.canvas.winfo_screenwidth(), 0))
-
-  def set_greyscale(self, greyscale):
-    '''
-    Sets the luminance of the greyscale background image
-    '''
-    self.img.fill(greyscale)
-    self.bg_img = ImageTk.PhotoImage(Image.fromarray(self.img, mode="L"))
-    self.canvas.create_image(0, 0, anchor="nw", image=self.bg_img)
-
-
-  def initialise_rectangle(self, width, height):
-    '''
-    Initialises a black rectangle and places it on the upper left hand corner of the canvas
-    '''
-    self.rectangle = self.canvas.create_rectangle(0, 0, width,height, fill="#000000", width=0)
-
-  def move_rectangle(self, x_coord, y_coord):
-    '''
-    Moves the rectangle to the new coordinate (x_coord, y_coord)
-    '''
-    self.canvas.moveto(self.rectangle, x_coord, y_coord)
-
+  
   def end_experiment(self):
     '''
     Destroys window
     '''
     self.destroy()
-
+  
+  ## Daemon Functions
   def call_handler(self):
     '''
     Runs every 500ms in the main event loop to check if a function run has been requested by the daemon threads
@@ -357,45 +301,50 @@ class AutoExperimentGUI(tk.Tk):
     # Put onto event queue
     self.request_queue.put(data)
 
-  def greyscale_intensity_experiment(self):
-    '''
-    Runs experiment to obtain relationship between greyscale of the image projected and the light intensity at the end of the microscope
-    '''
+class PixelIntensityExperiment(ExperimentGUI):
+  '''
+  Determines how much light intensity each pixel contributes to the sample
 
-    print("Begin Experiment")
+  :param kernel_dim: dimension of the kernel moved across the display
+  :param scale: effectively reduces the resolution of the display by 8 in both dimension, reduces time for experiment to complete
 
-    # Full screen
-    self.make_call(self.activate_full_screen, True)
-    
-    # Loops through the greyscale range starting from white
-    for i in range(255, 0, -self.step):
-      # Request main thread to update the greyscale
-      self.make_call(self.set_greyscale, i)
-      time.sleep(1)
-      # Take readings
-      self.greyscale_intensity_readings.append([i, float(self.power_meter.get_power_reading_W_str())])
-    # Requests main thread to end experiment
-    # print("End Experiment")
-    self.make_call(self.destroy)
+  '''
+  def __init__(self, kernel_dim=(3, 3), scale=8):
+    super().__init__()
+
+    # Pixel intensity experiment parameters
+    self.scale = scale
+    self.kernel_dim = kernel_dim
+    self.rectangle = None
+    self.intensity_readings = []
+    self.rectangle = self.canvas.create_rectangle(0, 0, kernel_dim[0]*scale, kernel_dim[1]*scale, fill="#000000", width=0)
+    # Creates a daemon thread for the pixel intensity experiment to run in the background 
+    self.pixel_intensity_experiment_thread = Thread(target=self.pixel_intensity_experiment, daemon=True)
+    self.pixel_intensity_experiment_thread.start()
+
+    self.after(100, self.call_handler)
+
+  def move_rectangle(self, x_coord, y_coord):
+    '''
+    Moves the rectangle to the new coordinate (x_coord, y_coord)
+    '''
+    self.canvas.moveto(self.rectangle, x_coord, y_coord)
   
   def pixel_intensity_experiment(self):
     '''
     Runs the experiment to determine how much each block of pixels contributes to the overall light intensity at the end of the microscope
+    Stores data in text file called pixel_intensity_readings.txt
     '''
-
-    scale = 8
 
     print("Begin Experiment")
 
-    # Full screen
-    self.make_call(self.activate_full_screen, True)
+    # Full screen and wait until full screen process is completed
+    self.make_call(self.activate_full_screen)
+    time.sleep(1)
 
     # Create list of dimensions for the corner of each pixel block, additional +1 as upper bound is included
-    x_coords = np.arange(0, self.exp_screen_res[0] + (2 - self.kernel_x)*scale, step=scale, dtype=int)
-    y_coords = np.arange(0, self.exp_screen_res[1] + (2 - self.kernel_y)*scale, step=scale, dtype=int)
-
-    # Request main thread to initialise a block of darkened pixels
-    self.make_call(self.initialise_rectangle, self.kernel_x*scale, self.kernel_y*scale)
+    x_coords = np.arange(0, self.exp_screen_res[0] + (2 - self.kernel_dim[0])*self.scale, step=self.scale, dtype=int)
+    y_coords = np.arange(0, self.exp_screen_res[1] + (2 - self.kernel_dim[1])*self.scale, step=self.scale, dtype=int)
 
     # Loop through the all possible locations of the pixel block
     for y_coord in y_coords:
@@ -405,42 +354,123 @@ class AutoExperimentGUI(tk.Tk):
         # Request main thread to move the block of darkened pixels
         self.make_call(self.move_rectangle, x_coord, y_coord)
 
-        time.sleep(1)
+        time.sleep(0.15)
 
         temp.append(self.power_meter.get_power_reading_W_str())
+      # Write data to textfile
+      with open("pixel_intensity_readings.txt", "a") as file:
+        file.write(",".join(temp) + "\n")
+
       self.intensity_readings.append(temp)
 
     # Request main thread to end experiment
     print("End Experiment")
     self.make_call(self.destroy)
+
+  def deconvolve_and_plot_pixel_intensity(self, fileName=""):
+    '''
+    Deconvolve array using Richardson-Lucy algorithmn
+    '''
+    if fileName != "":
+      data = []
+      with open(fileName, "r") as file:
+        lines = file.readlines()
+        for line in lines:
+          data.append(list(line.split(","))[:-1])
+      data = np.array(data)
+    elif self.intensity_readings != []:
+      data = np.array(self.intensity_readings)
+    else:
+      print("No data available to plot!")
+      return
+    
+    kernel = np.ones((3,3), dtype=int)
+    full_intensity_array = restoration.richardson_lucy(data, kernel, num_iter=30)
+    len_x, len_y = full_intensity_array.shape
+    x_axis, y_axis = np.meshgrid(np.linspace(0,len_x), np.linspace(0,len_y))
+
+    plt.contour(x_axis, y_axis, full_intensity_array, levels=20)
+    plt.show()
+
+class GreyScaleIntensityExperiment(ExperimentGUI):
+  '''
+  Determine the relationship between intensity of light on the sample with respect to the greyscale of the image taken by the camera
+
+  :param step: the interval between greyscale values wherein measurements are taken
+  '''
+  def __init__(self, step=5):
+
+    # Greyscale intensity experiment parameters
+    self.step = step
+    self.greyscale_intensity_readings = []
+    # Creates a daemon thread for the greyscale intensity experiment to run in the background
+    self.greyscale_intensity_experiment_thread = Thread(target=self.greyscale_intensity_experiment, daemon=True)
+    self.greyscale_intensity_experiment_thread.start()
+
+    self.after(100, self.call_handler)
+  
+  def set_greyscale(self, greyscale):
+    '''
+    Sets the luminance of the greyscale background image
+    '''
+    self.canvas.config(bg="#{0:X}{0:X}{0:X}".format(greyscale))
+
+  def greyscale_intensity_experiment(self):
+    '''
+    Runs experiment to obtain relationship between greyscale of the image projected and the light intensity at the end of the microscope
+    Writes data to file called greyscale_intensity_readings.txt
+    '''
+
+    print("Begin Experiment")
+
+    # Full screen and wait until full screen process is finished
+    self.make_call(self.activate_full_screen, True)
+    time.sleep(1)
+    
+    # Loops through the greyscale range starting from white
+    for i in range(255, 0, -self.step):
+      # Request main thread to update the greyscale
+      self.make_call(self.set_greyscale, i)
+      time.sleep(0.2)
+      # Take readings
+      self.greyscale_intensity_readings.append([i, float(self.power_meter.get_power_reading_W_str())])
+    
+    # Write to file
+    with open("greyscale_intensity_readings.txt", "w") as file:
+      for reading in self.greyscale_intensity_readings:
+        file.write(f"{reading[0]},{reading[1]}\n")
+
+    # Requests main thread to end experiment
+    print("End Experiment")
+    self.make_call(self.destroy)
+
+  def plot_greyscale_intensity(self, fileName=""):
+    '''
+    Plots the light intensity against the greyscale. Data taken from textfile or from self.greyscale_intensity_readings
+
+    :param fileName: name of textfile storing the data.
+    '''
+    if fileName != "":
+      data = []
+      with open(fileName, "r") as file:
+        lines = file.readlines()
+        for line in lines:
+          data.append(list(line.split(","))[:-1])
+      data = np.array(data)
+    elif self.greyscale_intensity_readings != []:
+      data = np.array(self.greyscale_intensity_readings)
+    else:
+      print("No data available to plot!")
+      return
+    
+    plt.plot(data[:,0], data[:,1])
+    plt.xlabel("Greyscale")
+    plt.ylabel("Light Intensity (W)")
+    plt.show()
+
   
 
 
 if __name__ == "__main__":
-  # screen2 = ExperimentGUI(kernel_x=400, kernel_y=400)
-  # screen2.pixel_intensity_experiment_thread.start()
-
-
-  # with open("pixel_intensity_readings.txt", "w") as file:
-  #   for line in screen2.intensity_readings:
-  #     file.write(",".join(line))
-  #     file.write("\n")
-
-  #print(screen.intensity_readings)
-
-
-  ## Determining relationship between greyscale values and light intensity
-  screen2 = AutoExperimentGUI(step=5)
-
-  screen2.greyscale_intensity_experiment_thread.start()
-  screen2.mainloop()
-  data = np.array(screen2.greyscale_intensity_readings)
-  # with open("greyscale_intensity_readings_500mA.txt", "w") as file:
-  #   for reading in data:
-  #     file.write(f"{reading[0]},{reading[1]}\n")
-
-  print(data)
-
-  plt.plot(data[:,0], data[:,1])
-  plt.show()
+  pass
 
