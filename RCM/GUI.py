@@ -213,6 +213,28 @@ class ImageDisplayGUI(tk.Tk):
     '''
     self.image_screen = _ImageGUI(event.widget.cget("text"), self.image_path_list)
 
+class ExperimentGridGUI(tk.Tk):
+  def __init__(self, grid_layout=(100, 100), grayscale=255):
+    super().__init__()
+
+    self.exp_screen_res = exp_screen_res
+
+    self.title("Grid Screen")
+    self.columnconfigure([i for i in range(grid_layout[0])], weight=1)
+    self.rowconfigure([i for i in range(grid_layout[1])], weight=1)
+    # Initialise canvas that will fill the whole window and expands if the window does
+    self.canvas = tk.Canvas(self, highlightthickness=0)
+    self.canvas.pack(fill="both", expand=True)
+    # Create greyscale image and overlay over whole canvas
+    self.img = np.zeros([self.exp_screen_res[1], self.exp_screen_res[0]], dtype=np.uint8)
+    self.img.fill(greyscale)
+    self.bg_img = ImageTk.PhotoImage(Image.fromarray(self.img, mode="L"))
+    self.canvas.create_image(0, 0, anchor="nw", image=self.bg_img)
+
+    # Create the daemon that does the following:
+    # Layout black rectangles all across grid
+    # Take hyperspectral readings
+
 class _CallData:
   '''
   Used to encapsulate the function and its argument sent from a daemon thread to the main thread to execute it in the main thread
@@ -222,7 +244,7 @@ class _CallData:
     self.args = args
     self.kwargs = kwargs
 
-class ExperimentGUI(tk.Tk):
+class AutoExperimentGUI(tk.Tk):
   '''
 
   Window used to control what is displayed on the HDMI screen of the microscope to do experiments
@@ -235,8 +257,6 @@ class ExperimentGUI(tk.Tk):
   '''
   def __init__(self, exp_screen_res=(1280, 720), step=5, kernel_x=5, kernel_y=5):
     super().__init__()
-    # Removes title menu so that screen is not obscured
-    self.overrideredirect(True)
 
     self.exp_screen_res = exp_screen_res
 
@@ -275,10 +295,15 @@ class ExperimentGUI(tk.Tk):
     # Checks the event queue every 500 ms
     self.after(500, self.call_handler)
 
-  def activate_full_screen(self):
+  def activate_full_screen(self, do_overrideredirect=True):
     '''
     Turns the window into a fullscreen
+
+    :param do_overrideredirect: removes title menu but prevents screen from responding
     '''
+    # Removes title menu so that screen is not obscured
+    self.overrideredirect(do_overrideredirect)
+
     self.geometry('%dx%d%+d+%d'%(self.exp_screen_res[0], self.exp_screen_res[1], -self.canvas.winfo_screenwidth(), 0))
 
   def set_greyscale(self, greyscale):
@@ -340,35 +365,37 @@ class ExperimentGUI(tk.Tk):
     print("Begin Experiment")
 
     # Full screen
-    self.make_call(self.activate_full_screen)
+    self.make_call(self.activate_full_screen, True)
     
     # Loops through the greyscale range starting from white
-    # for i in range(255, 0, -self.step):
-    #   # Request main thread to update the greyscale
-    #   self.make_call(self.set_greyscale, i)
-    #   time.sleep(1)
-    #   # Take readings
-    #   self.greyscale_intensity_readings.append([i, float(self.power_meter.get_power_reading_W_str())])
-    # # Requests main thread to end experiment
-    # # print("End Experiment")
-    # self.make_call(self.destroy)
+    for i in range(255, 0, -self.step):
+      # Request main thread to update the greyscale
+      self.make_call(self.set_greyscale, i)
+      time.sleep(1)
+      # Take readings
+      self.greyscale_intensity_readings.append([i, float(self.power_meter.get_power_reading_W_str())])
+    # Requests main thread to end experiment
+    # print("End Experiment")
+    self.make_call(self.destroy)
   
   def pixel_intensity_experiment(self):
     '''
     Runs the experiment to determine how much each block of pixels contributes to the overall light intensity at the end of the microscope
     '''
 
+    scale = 8
+
     print("Begin Experiment")
 
     # Full screen
-    self.make_call(self.activate_full_screen)
+    self.make_call(self.activate_full_screen, True)
 
     # Create list of dimensions for the corner of each pixel block, additional +1 as upper bound is included
-    x_coords = np.arange(0, self.exp_screen_res[0] + 2 - self.kernel_x, step=500, dtype=int)
-    y_coords = np.arange(0, self.exp_screen_res[1] + 2 - self.kernel_y, step=500, dtype=int)
+    x_coords = np.arange(0, self.exp_screen_res[0] + (2 - self.kernel_x)*scale, step=scale, dtype=int)
+    y_coords = np.arange(0, self.exp_screen_res[1] + (2 - self.kernel_y)*scale, step=scale, dtype=int)
 
     # Request main thread to initialise a block of darkened pixels
-    self.make_call(self.initialise_rectangle, self.kernel_x, self.kernel_y)
+    self.make_call(self.initialise_rectangle, self.kernel_x*scale, self.kernel_y*scale)
 
     # Loop through the all possible locations of the pixel block
     for y_coord in y_coords:
@@ -378,7 +405,7 @@ class ExperimentGUI(tk.Tk):
         # Request main thread to move the block of darkened pixels
         self.make_call(self.move_rectangle, x_coord, y_coord)
 
-        time.sleep(5e-6)
+        time.sleep(1)
 
         temp.append(self.power_meter.get_power_reading_W_str())
       self.intensity_readings.append(temp)
@@ -387,6 +414,8 @@ class ExperimentGUI(tk.Tk):
     print("End Experiment")
     self.make_call(self.destroy)
   
+
+
 if __name__ == "__main__":
   # screen2 = ExperimentGUI(kernel_x=400, kernel_y=400)
   # screen2.pixel_intensity_experiment_thread.start()
@@ -401,7 +430,7 @@ if __name__ == "__main__":
 
 
   ## Determining relationship between greyscale values and light intensity
-  screen2 = ExperimentGUI(step=5)
+  screen2 = AutoExperimentGUI(step=5)
 
   screen2.greyscale_intensity_experiment_thread.start()
   screen2.mainloop()
