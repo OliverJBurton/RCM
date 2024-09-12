@@ -7,6 +7,7 @@ import customtkinter
 import numpy as np
 from PIL import Image, ImageTk
 import matplotlib.pyplot as plt
+from scipy.interpolate import RegularGridInterpolator
 
 from skimage import restoration
 """
@@ -259,7 +260,6 @@ class ExperimentGUI(tk.Tk):
 
     # Create event queue
     self.request_queue = Queue()
-
   
   ## Normal Functions
   def activate_full_screen(self):
@@ -308,21 +308,24 @@ class ExperimentGUI(tk.Tk):
   def take_measurement(self):
     print(self.power_meter.get_power_reading_W_str())
 
-class GreyScaleIntensityExperiment(ExperimentGUI):
+class GreyScaleEnergyExperiment(ExperimentGUI):
   '''
-  Determine the relationship between intensity of light on the sample with respect to the greyscale of the image taken by the camera
+  Determine the relationship between energy of light on the sample with respect to the greyscale of the image taken by the camera
 
   :param step: the interval between greyscale values wherein measurements are taken
   '''
 
-  def __init__(self, step=5):
+  def __init__(self, step=1, fileName="greyscale_energy_readings.txt"):
     super().__init__()
 
-    # Greyscale intensity experiment parameters
+    self.fileName = fileName
+
+    # Greyscale energy experiment parameters
     self.step = step
-    self.greyscale_intensity_readings = []
-    # Creates a daemon thread for the greyscale intensity experiment to run in the background
-    self.greyscale_intensity_experiment_thread = Thread(target=self.greyscale_intensity_experiment, daemon=True)
+    self.greyscale_energy_readings = []
+    self.background_energy = 0
+    # Creates a daemon thread for the greyscale energy experiment to run in the background
+    self.greyscale_energy_experiment_thread = Thread(target=self.greyscale_energy_experiment, daemon=True)
 
     self.after(self.refresh_rate_ms, self.call_handler)
 
@@ -332,80 +335,94 @@ class GreyScaleIntensityExperiment(ExperimentGUI):
     '''
     self.canvas.config(bg=f"#{greyscale:02X}{greyscale:02X}{greyscale:02X}")
 
-  def greyscale_intensity_experiment(self):
+  def greyscale_energy_experiment(self):
     '''
-    Runs experiment to obtain relationship between greyscale of the image projected and the light intensity at the end of the microscope
-    Writes data to file called greyscale_intensity_readings.txt
+    Runs experiment to obtain relationship between greyscale of the image projected and the light energy at the end of the microscope
+    Writes data to file called greyscale_energy_readings.txt (by default)
     '''
 
     print("Begin Experiment")
 
     # Full screen and wait until full screen process is finished
     self.make_call(self.activate_full_screen)
-    time.sleep(1)
+    self.background_energy = float(self.power_meter.get_power_reading_W_str())
 
     # Loops through the greyscale range starting from white
     for i in range(255, 0, -self.step):
       # Request main thread to update the greyscale
       self.make_call(self.set_greyscale, i)
       # Take readings
-      self.greyscale_intensity_readings.append([i, float(self.power_meter.get_power_reading_W_str())])
+      self.greyscale_energy_readings.append([i, float(self.power_meter.get_power_reading_W_str())])
 
     # Write to file
-    with open("greyscale_intensity_readings.txt", "w") as file:
-      for reading in self.greyscale_intensity_readings:
+    with open(self.fileName, "w") as file:
+      file.write(f"{self.background_energy}\n")
+      for reading in self.greyscale_energy_readings:
         file.write(f"{reading[0]},{reading[1]}\n")
 
     # Requests main thread to end experiment
     print("End Experiment")
     self.make_call(self.destroy)
 
-  def plot_greyscale_intensity(self, fileName=""):
+  def plot_and_fit_greyscale_energy(self, order=2, do_plot=False):
     '''
-    Plots the light intensity against the greyscale. Data taken from textfile or from self.greyscale_intensity_readings
+    Plots and fits a polynomial to the light energy against the greyscale. Data taken from textfile or from self.greyscale_energy_readings
 
     :param fileName: name of textfile storing the data.
+    :param order: order of the polynomial fitted
     '''
-    if fileName != "":
+    if self.fileName != "":
       data = []
-      with open(fileName, "r") as file:
+      with open(self.fileName, "r") as file:
         lines = file.readlines()
-        for line in lines:
-          data.append(list(line.split(","))[:-1])
-      data = np.array(data)
-    elif self.greyscale_intensity_readings != []:
-      data = np.array(self.greyscale_intensity_readings)
+        self.background_energy = float(lines[0])
+        for line in lines[1:]:
+          data.append(list(line.split(","))[:-1]) - self.background_energy
+      data = np.array(data, dtype=np.float32)
+    elif self.greyscale_energy_readings != []:
+      data = np.array(self.greyscale_energy_readings, dtype=np.float32) - self.background_energy
     else:
       print("No data available to plot!")
       return
+    
+    greyscale, energy = data[:,0], data[:,1]
+    
+    parameters = np.polyfit(greyscale, energy, order)
+    energy_function_of_greyscale = np.poly1d(parameters)
 
-    plt.plot(data[:, 0], data[:, 1])
-    plt.xlabel("Greyscale")
-    plt.ylabel("Light Intensity (W)")
-    plt.show()
+    parameters = np.polyfit(energy, greyscale, order)
+    greyscale_function_of_energy = np.poly1d(parameters)
 
-class PixelIntensityExperiment(ExperimentGUI):
+    if do_plot:
+      plt.plot(data[:, 0], data[:, 1], 'rx', data[:, 0], energy_function_of_greyscale(data[:, 0]))
+      plt.xlabel("Greyscale")
+      plt.ylabel("Light energy (W)")
+      plt.show()
+
+    return energy_function_of_greyscale, greyscale_function_of_energy
+
+class PixelEnergyExperiment(ExperimentGUI):
   '''
-  Determines how much light intensity each pixel contributes to the sample
+  Determines how much light energy each pixel contributes to the sample
 
   :param kernel_dim: dimension of the kernel moved across the display
   :param scale: effectively reduces the resolution of the display by 8 in both dimension, reduces time for experiment to complete
 
   '''
-  def __init__(self, kernel_dim=(3, 3), scale=8, fileName="pixel_intensity_readings.txt"):
+  def __init__(self, kernel_dim=(60, 60), scale=1, fileName="pixel_energy_readings.txt"):
     super().__init__()
 
     self.fileName = fileName
 
-    # Pixel intensity experiment parameters
+    # Pixel energy experiment parameters
     self.scale = scale
     self.kernel_dim = kernel_dim
     self.rectangle = None
-    self.intensity_readings = []
-    self.background_intensity = 0
+    self.energy_readings = []
+    self.background_energy = 0
     self.rectangle = self.canvas.create_rectangle(0, 0, kernel_dim[0]*scale, kernel_dim[1]*scale, fill="#000000", width=0)
-    # Creates a daemon thread for the pixel intensity experiment to run in the background 
-    self.pixel_intensity_experiment_thread = Thread(target=self.pixel_intensity_experiment, daemon=True)
+    # Creates a daemon thread for the pixel energy experiment to run in the background 
+    self.pixel_energy_experiment_thread = Thread(target=self.pixel_energy_experiment, daemon=True)
 
     self.after(self.refresh_rate_ms, self.call_handler)
 
@@ -415,10 +432,10 @@ class PixelIntensityExperiment(ExperimentGUI):
     '''
     self.canvas.moveto(self.rectangle, x_coord, y_coord)
   
-  def pixel_intensity_experiment(self):
+  def pixel_energy_experiment(self):
     '''
-    Runs the experiment to determine how much each block of pixels contributes to the overall light intensity at the end of the microscope
-    Stores data in text file called pixel_intensity_readings.txt
+    Runs the experiment to determine how much each block of pixels contributes to the overall light energy at the end of the microscope
+    Stores data in text file called pixel_energy_readings.txt
     '''
 
     print("Begin Experiment")
@@ -435,10 +452,10 @@ class PixelIntensityExperiment(ExperimentGUI):
 
     # Loop through the all possible locations of the pixel block
     with open(self.fileName, "w") as file:
-      self.background_intensity = float(self.power_meter.get_power_reading_W_str())
-      file.write(f"{self.background_intensity}\n")
+      self.background_energy = float(self.power_meter.get_power_reading_W_str())
+      file.write(f"{self.background_energy}\n")
       for y_coord in y_coords:
-        # To store a width of intensity values
+        # To store a width of energy values
         temp = []
         for x_coord in x_coords:
           # Request main thread to move the block of darkened pixels
@@ -448,59 +465,108 @@ class PixelIntensityExperiment(ExperimentGUI):
           # Write data to textfile
         file.write(",".join(temp) + "\n")
 
-        self.intensity_readings.append(temp)
+        self.energy_readings.append(temp)
     file.close()
 
     # Request main thread to end experiment
     print("End Experiment")
     self.make_call(self.destroy)
 
-  def plot_avg_pixel_intensity(self, fileNames):
-    data = 0
-    for fileName in fileNames:
-      temp_data = []
-      with open(fileName, "r") as file:
-        lines = file.readlines()
-        self.background_intensity = float(lines[0])
-        for line in lines[1:]:
-          temp_data.append(list(line.split(","))[:-1])
-      data = data + np.array(temp_data, dtype=np.float32) - self.background_intensity
-
-    avg_data = data / len(fileNames)
-    plt.contourf(avg_data, levels=30, cmap="RdGy")
-    plt.colorbar()
-    plt.show()
-
-
-  def plot_pixel_intensity(self, fileName=""):
-    '''
-    Use data stored in file or variable self.intensity_readings to plot data
-    '''
-    if fileName != "":
+  def _get_file_data(self):
+    if self.fileName != "":
       data = []
-      with open(fileName, "r") as file:
+      with open(self.fileName, "r") as file:
         lines = file.readlines()
-        self.background_intensity = float(lines[0])
+        self.background_energy = float(lines[0])
         for line in lines[1:]:
           data.append(list(line.split(","))[:-1])
-      data = np.array(data, dtype=np.float32) - self.background_intensity
-    elif self.intensity_readings != []:
-      data = np.array(self.intensity_readings, dtype=np.float32) - self.background_intensity
+      return np.array(data, dtype=np.float32) - self.background_energy
+    elif self.energy_readings != []:
+      return np.array(self.energy_readings, dtype=np.float32) - self.background_energy
     else:
       print("No data available to plot!")
-      return
+      return None
+
+  def plot_pixel_energy_fraction(self):
+    '''
+    Use data stored in file or variable self.energy_readings to plot. Each point is a fraction of the total light energy.
+    '''
+    data = self._get_file_data()
+    data = data / np.sum(data)
 
     plt.contourf(data, levels=30, cmap="RdGy")
     plt.colorbar()
     plt.show()
 
     # kernel = np.ones((3,3), dtype=int)
-    # full_intensity_array = restoration.richardson_lucy(data, kernel)
-    # # len_x, len_y = full_intensity_array.shape
-    # # x_axis, y_axis = np.meshgrid(np.linspace(0,len_x), np.linspace(0,len_y))
-    # plt.contourf(full_intensity_array, levels=20, cmap="RdGy")
+    # full_energy_array = restoration.richardson_lucy(data, kernel)
+    # plt.contourf(full_energy_array, levels=20, cmap="RdGy")
     # plt.colorbar()
     # plt.show()
+  
+  def plot_avg_pixel_energy_fraction(self, fileNames):
+    '''
+    Average the readings taken from a list of file names and plot it. Each point is a fraction of the total light energy
+
+    :param fileNames: list of file names to take readings from
+    '''
+    data = 0
+    for fileName in fileNames:
+      self.fileName = fileName
+      data += self._get_file_data()
+
+    avg_data = data / len(fileNames) / np.sum(data)
+    plt.contourf(avg_data, levels=30, cmap="RdGy")
+    plt.colorbar()
+    plt.show()
+
+  def interpolate_data(self, do_plot=True):
+    data = self._get_file_data()
+    data = data/np.sum()
+
+    M, N = data.shape
+    x_axis, y_axis = np.meshgrid(np.linspace(0, M, M+1), np.linspace(0, N, N+1))
+    interp = RegularGridInterpolator(list(zip(x_axis, y_axis)), data)
+    if do_plot:
+      Z = interp(x_axis, y_axis)
+      plt.contourf(Z, levels=30, cmap="RdGy")
+      plt.colorbar()
+      plt.show()
+
+    return interp
+
+class LightIntensityDetermination:
+  def __init__(self, step=1, kernel_dim=(60,60), scale=1, do_plot=True):
+    # All of these relationships are obtained for a particular current
+
+    # Obtain relationship between greyscale and light energy
+    experiment1 = GreyScaleEnergyExperiment(step=step)
+    experiment1.greyscale_energy_experiment_thread.start()
+    experiment1.mainloop()
+
+    self.energy_function_of_greyscale, self.greyscale_function_of_energy = experiment1.plot_and_fit_greyscale_energy(do_plot=do_plot)
+
+    # Obtain f(x, y): 
+    experiment2 = PixelenergyExperiment(kernel_dim=kernel_dim, scale=scale)
+    experiment2.pixel_energy_experiment_thread.start()
+    experiment2.mainloop()
+
+    self.f_x_y = experiment2.interpolate_data()
+    self.background_energy_per_pixel = experiment2.background_energy / (experiment2.exp_screen_res[0]*experiment2.exp_screen_res[1])
+
+  def obtain_required_greyscale(self, wanted_light_intensity, block_dim=(3,3), block_corner_coord=(1278, 718)):
+    pixel_area = 10**(-6)
+    num_pixels = block_dim[0]*block_dim[1]
+    greyscale_values = np.zeros(num_pixels).reshape(block_dim)
+
+    for i in range(block_dim[0]):
+      for j in range(block_dim[1]):
+        wanted_energy = wanted_light_intensity*pixel_area
+        # Instead of total background energy, we probably wanna measure the background energy without the reflected portions
+        greyscale_values[i,j] = self.greyscale_function_of_energy((wanted_energy - self.background_energy_per_pixel) / f_x_y(block_corner_coord[0]+i, block_corner_coord[1]+j))
+    return greyscale_values
+    
+    
 
 
 # Time per measurement approximately 62.53 ms
@@ -509,17 +575,17 @@ if __name__ == "__main__":
   # screen.activate_full_screen()
   # screen.mainloop()
   # for i in range(10,11):
-  #   experiment = PixelIntensityExperiment(kernel_dim=(20,20), scale=1, fileName=f"pixel_intensity_readings_avg{i}.txt")
-  #   experiment.pixel_intensity_experiment_thread.start()
+  #   experiment = PixelenergyExperiment(kernel_dim=(20,20), scale=1, fileName=f"pixel_energy_readings_avg{i}.txt")
+  #   experiment.pixel_energy_experiment_thread.start()
   # #   experiment.mainloop()
-  experiment = PixelIntensityExperiment(kernel_dim=(60, 60), scale=1)
-  experiment.pixel_intensity_experiment_thread.start()
+  experiment = PixelEnergyExperiment(kernel_dim=(60, 60), scale=1)
+  # experiment.pixel_energy_experiment_thread.start()
   experiment.mainloop()
-  experiment.plot_pixel_intensity(fileName="pixel_intensity_readings.txt")
+  experiment.plot_pixel_energy(fileName="pixel_energy_readings.txt")
 
-  # fileNames=[f"pixel_intensity_readings_avg{i}.txt" for i in range(20)]
-  # experiment.plot_avg_pixel_intensity(fileNames)
+  # fileNames=[f"pixel_energy_readings_avg{i}.txt" for i in range(20)]
+  # experiment.plot_avg_pixel_energy(fileNames)
 
-  # experiment = GreyScaleIntensityExperiment(step=1)
+  # experiment = GreyScaleenergyExperiment(step=1)
   # experiment.mainloop()
-  # experiment.plot_greyscale_intensity()
+  # experiment.plot_greyscale_energy()
