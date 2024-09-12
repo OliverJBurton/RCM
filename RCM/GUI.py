@@ -15,8 +15,8 @@ Note resolution of experiment screen is 1280 x 720
 Note greyscale is inverted on the projector to that on the main screen
 
 To open a blank black (on the projector, appears white on the main screen) screen that you can move around, do:
-screen = ExperimentGUI(do_overridedirect=False)
-screen.active_fullscreen()
+screen = ExperimentGUI(do_overrideredirect=False)
+screen.activate_full_screen()
 screen.mainloop()
 
 """
@@ -260,6 +260,7 @@ class ExperimentGUI(tk.Tk):
 
     # Create event queue
     self.request_queue = Queue()
+
   
   ## Normal Functions
   def activate_full_screen(self):
@@ -307,6 +308,20 @@ class ExperimentGUI(tk.Tk):
     data.reply_event.wait()
   def take_measurement(self):
     print(self.power_meter.get_power_reading_W_str())
+
+class DebugScreen(ExperimentGUI):
+  def __init__(self, greyscale=255, do_overrideredirect=True, grid_layout=(1,1)):
+    super().__init__(greyscale=greyscale, do_overrideredirect=do_overrideredirect, grid_layout=grid_layout)
+    print("Press 'f' to move screen to projector monitor and activate full screen")
+    print("Press 'l' to obtain reading from power meter")
+
+    self.bind("<Key>", self.key_press)
+  
+  def key_press(self, event):
+    if event.char == "l":
+      print(self.power_meter.get_power_reading_W_str())
+    elif event.char == "f":
+      self.activate_full_screen()
 
 class GreyScaleEnergyExperiment(ExperimentGUI):
   '''
