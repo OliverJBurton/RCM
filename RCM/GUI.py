@@ -8,15 +8,15 @@ import numpy as np
 from PIL import Image, ImageTk
 import matplotlib.pyplot as plt
 from scipy.interpolate import RegularGridInterpolator
+import random
 
 from skimage import restoration
 """
-Note resolution of experiment screen is 1280 x 720
+Note resolution of experiment screen is 1920 x 1080
 Note greyscale is inverted on the projector to that on the main screen
 
 To open a blank black (on the projector, appears white on the main screen) screen that you can move around, do:
-screen = ExperimentGUI(do_overrideredirect=False)
-screen.activate_full_screen()
+screen = DebugScreen()
 screen.mainloop()
 
 """
@@ -241,16 +241,17 @@ class ExperimentGUI(tk.Tk):
   :param do_overrideredirect: removes the taskbar and makes screen unresponsive, used to full-screen. 
   :param grid_layout: number of columns and rows of the screen. 1 is the minimum.
   '''
-  def __init__(self, exp_screen_res=(1280, 720), greyscale=255, do_overrideredirect=True, grid_layout=(1, 1), refresh_rate_ms=3):
+  def __init__(self, exp_screen_res=(1920, 1080), greyscale=255, do_overrideredirect=True, refresh_rate_ms=3, do_plot=True):
     super().__init__()
 
     self.exp_screen_res = exp_screen_res
     self.do_overrideredirect = do_overrideredirect
     self.refresh_rate_ms = refresh_rate_ms
+    self.do_plot = do_plot
 
     self.title("Experiment")
-    self.columnconfigure([i for i in range(grid_layout[0])], weight=1)
-    self.rowconfigure([i for i in range(grid_layout[1])], weight=1)
+    self.columnconfigure(0, weight=1)
+    self.rowconfigure(0, weight=1)
     # Initialise canvas that will fill the whole window and expands if the window does
     self.canvas = tk.Canvas(self, bg=f"#{greyscale:02X}{greyscale:02X}{greyscale:02X}",highlightthickness=0)
     self.canvas.pack(fill="both", expand=True)
@@ -310,8 +311,8 @@ class ExperimentGUI(tk.Tk):
     print(self.power_meter.get_power_reading_W_str())
 
 class DebugScreen(ExperimentGUI):
-  def __init__(self, greyscale=255, do_overrideredirect=True, grid_layout=(1,1)):
-    super().__init__(greyscale=greyscale, do_overrideredirect=do_overrideredirect, grid_layout=grid_layout)
+  def __init__(self, greyscale=255, do_overrideredirect=True):
+    super().__init__(greyscale=greyscale, do_overrideredirect=do_overrideredirect)
     print("Press 'f' to move screen to projector monitor and activate full screen")
     print("Press 'l' to obtain reading from power meter")
 
@@ -330,13 +331,12 @@ class GreyScaleEnergyExperiment(ExperimentGUI):
   :param step: the interval between greyscale values wherein measurements are taken
   '''
 
-  def __init__(self, step=1, fileName="greyscale_energy_readings.txt"):
-    super().__init__()
+  def __init__(self, fileName="greyscale_energy_readings.txt", do_plot=True):
+    super().__init__(do_plot=do_plot)
 
     self.fileName = fileName
 
     # Greyscale energy experiment parameters
-    self.step = step
     self.greyscale_energy_readings = []
     self.background_energy = 0
     # Creates a daemon thread for the greyscale energy experiment to run in the background
@@ -364,7 +364,7 @@ class GreyScaleEnergyExperiment(ExperimentGUI):
     self.background_energy = float(self.power_meter.get_power_reading_W_str())
 
     # Loops through the greyscale range starting from white
-    for i in range(255, 0, -self.step):
+    for i in range(255, 0, -1):
       # Request main thread to update the greyscale
       self.make_call(self.set_greyscale, i)
       # Take readings
@@ -380,7 +380,7 @@ class GreyScaleEnergyExperiment(ExperimentGUI):
     print("End Experiment")
     self.make_call(self.destroy)
 
-  def plot_and_fit_greyscale_energy(self, order=2, do_plot=True):
+  def plot_and_fit_greyscale_energy(self, order=2):
     '''
     Plots and fits a polynomial to the light energy against the greyscale. Data taken from textfile or from self.greyscale_energy_readings
 
@@ -409,7 +409,7 @@ class GreyScaleEnergyExperiment(ExperimentGUI):
     parameters = np.polyfit(energy, greyscale, order)
     greyscale_function_of_energy = np.poly1d(parameters)
 
-    if do_plot:
+    if self.do_plot:
       plt.plot(greyscale, energy, 'rx', greyscale, energy_function_of_greyscale(greyscale))
       plt.xlim((greyscale[0], greyscale[-1]))
       plt.ylim(bottom=np.min(energy))
@@ -427,15 +427,13 @@ class PixelEnergyExperiment(ExperimentGUI):
   :param scale: effectively reduces the resolution of the display by 8 in both dimension, reduces time for experiment to complete
 
   '''
-  def __init__(self, kernel_dim=(60, 60), scale=1, fileName="pixel_energy_readings.txt"):
-    super().__init__()
+  def __init__(self, kernel_dim=(60, 60), fileName="pixel_energy_readings.txt", do_plot=True):
+    super().__init__(do_plot=do_plot)
 
     self.fileName = fileName
 
     # Pixel energy experiment parameters
-    self.scale = scale
     self.kernel_dim = kernel_dim
-    self.rectangle = None
     self.energy_readings = []
     self.background_energy = 0
     self.rectangle = self.canvas.create_rectangle(0, 0, kernel_dim[0]*scale, kernel_dim[1]*scale, fill="#000000", width=0)
@@ -463,10 +461,8 @@ class PixelEnergyExperiment(ExperimentGUI):
     time.sleep(0.5)
 
     # Create list of dimensions for the corner of each pixel block, additional +1 as upper bound is included
-    # x_coords = np.arange(0, self.exp_screen_res[0] + (2 - self.kernel_dim[0])*self.scale, step=self.scale, dtype=int)
-    # y_coords = np.arange(0, self.exp_screen_res[1] + (2 - self.kernel_dim[1])*self.scale, step=self.scale, dtype=int)
-    x_coords = np.arange(0, self.exp_screen_res[0], step=self.scale*self.kernel_dim[0], dtype=int)
-    y_coords = np.arange(0, self.exp_screen_res[1], step=self.scale*self.kernel_dim[1], dtype=int)
+    x_coords = np.arange(0, self.exp_screen_res[0], step=self.kernel_dim[0], dtype=int)
+    y_coords = np.arange(0, self.exp_screen_res[1], step=self.kernel_dim[1], dtype=int)
 
     # Loop through the all possible locations of the pixel block
     with open(self.fileName, "w") as file:
@@ -516,12 +512,6 @@ class PixelEnergyExperiment(ExperimentGUI):
     plt.contourf( data, levels=30, cmap="RdGy")
     plt.colorbar()
     plt.show()
-
-    # kernel = np.ones((3,3), dtype=int)
-    # full_energy_array = restoration.richardson_lucy(data, kernel)
-    # plt.contourf(full_energy_array, levels=20, cmap="RdGy")
-    # plt.colorbar()
-    # plt.show()
   
   def plot_avg_pixel_energy_fraction(self, fileNames):
     '''
@@ -539,7 +529,7 @@ class PixelEnergyExperiment(ExperimentGUI):
     plt.colorbar()
     plt.show()
 
-  def interpolate_data(self, do_plot=True):
+  def interpolate_data(self):
     data = self._get_file_data()
     data = data/np.sum(data)
 
@@ -547,7 +537,7 @@ class PixelEnergyExperiment(ExperimentGUI):
     x = np.arange(M)
     y = np.arange(N)
     interp = RegularGridInterpolator([x, y], data)
-    if do_plot:
+    if self.do_plot:
       xx = np.linspace(0, M-1, 100)
       yy = np.linspace(0, N-1, 100)
       X, Y = np.meshgrid(xx, yy, indexing="ij")
@@ -558,26 +548,78 @@ class PixelEnergyExperiment(ExperimentGUI):
 
     return interp
 
+class ParticleGrowthExperiment(ExperimentGUI):
+  """
+
+  Creates the required grid of rectangles on the screen with required intensities on the sample
+
+  :param seed: seed to generates coordinates
+  :param grid_layout: tuple of the number of grids in each dimension
+  :param padding: padding within each grid to control spacing between each rectangle
+  :param num_points: number of rectangles to generate
+  :param intensities: list of intensities required at each rectangle
+  :param kernel_dim: dimension of the kernel used in pixel energy experiment
+  :param do_plot: True to plot figures for grey scale energy and pixel energy experiment
+
+  """
+  def __init__(self, seed="Miaow", grid_layout=(80, 60), padding=(10, 10), num_points=10, intensities=[], kernel_dim=(60, 60), do_plot=True):
+
+    self.grid_dim = (self.exp_screen_res[0]//grid_layout[0], self.exp_screen_res[1]//grid_layout[1])
+    self.grid_coordinates = []
+    self.corner_coordinates = []
+    self.intensities = intensities
+    self.greyscale = []
+
+    # Generate a number of non-overlapping grid locations
+    random.seed(seed)
+    while len(self.coordinates) != num_points:
+      potential_grid = (int(random()*self.grid_layout[0]), int(random()*self.grid_layout[1]))
+      if potential_grid not in self.grid_coordinates:
+        self.grid_coordinates.append(potential_grid)
+        self.corner_coordinates.append((potential_grid[0]*self.grid_size[0], potential_grid[1]*self.grid_size[1]))
+
+    # Perform experiment to determine greyscale values to obtain the desired intensities at different points
+    setup = LightIntensityDetermination(kernel_dim=kernel_dim, do_plot=do_plot)
+
+    for i, corner_coordinate in enumerate(self.corner_coordinates):
+      self.greyscale.append(setup.obtain_required_greyscale(wanted_light_intensity=self.intensities[i], grid_dim=self.grid_dim, corner_coord=corner_coordinate))
+    
+    # Start display, create rectangles with required greyscale in each position
+    super().__init__(grid_layout=grid_layout)
+
+    for i, corner_coordinate in enumeratea(self.corner_coordinates):
+      self.canvas.create_rectangle(corner_coordinate[0]+spacing[0], 
+      corner_coordinate[1] + spacing[1], 
+      corner_coordinate[0] + self.grid_dim[0] - spacing[0], 
+      corner_coordinate[1] + self.grid_dim[1] - spacing[1],
+      fill=f"#{self.greyscale[i]:02X}{self.greyscale[i]:02X}{self.greyscale[i]:02X}")
+
 class LightIntensityDetermination:
-  def __init__(self, step=1, kernel_dim=(60,60), scale=1, do_plot=True):
+  """
+  Performs the greyscale energy and pixel energy experiment to determine the required greyscale to project the desired light intensity on a point on the sample
+
+  :param kernel_dim: size of the kernels used in the pixel energy experiment
+  :param do_plot: plot figures of the result of both experiments
+  """
+  def __init__(self, kernel_dim=(60,60), do_plot=True):
     # All of these relationships are obtained for a particular current
 
     # Obtain relationship between greyscale and light energy
-    experiment1 = GreyScaleEnergyExperiment(step=step)
+    experiment1 = GreyScaleEnergyExperiment(do_plot=do_plot)
     experiment1.greyscale_energy_experiment_thread.start()
     experiment1.mainloop()
 
-    self.energy_function_of_greyscale, self.greyscale_function_of_energy = experiment1.plot_and_fit_greyscale_energy(do_plot=do_plot)
+    self.energy_function_of_greyscale, self.greyscale_function_of_energy = experiment1.plot_and_fit_greyscale_energy()
 
     # Obtain f(x, y): 
-    experiment2 = PixelEnergyExperiment(kernel_dim=kernel_dim, scale=scale)
+    experiment2 = PixelEnergyExperiment(kernel_dim=kernel_dim, do_plot=do_plot)
     experiment2.pixel_energy_experiment_thread.start()
     experiment2.mainloop()
 
     self.f_x_y = experiment2.interpolate_data()
     self.background_energy_per_pixel = experiment2.background_energy / (experiment2.exp_screen_res[0]*experiment2.exp_screen_res[1])
 
-  def obtain_required_greyscale(self, wanted_light_intensity, block_dim=(3,3), block_corner_coord=(1278, 718)):
+  def obtain_required_greyscale(self, wanted_light_intensity, grid_dim, corner_coord):
     pixel_area = 10**(-6)
     num_pixels = block_dim[0]*block_dim[1]
     greyscale_values = np.zeros(num_pixels).reshape(block_dim)
@@ -588,6 +630,7 @@ class LightIntensityDetermination:
         # Instead of total background energy, we probably wanna measure the background energy without the reflected portions
         greyscale_values[i,j] = self.greyscale_function_of_energy((wanted_energy - self.background_energy_per_pixel) / self.f_x_y(block_corner_coord[0]+i, block_corner_coord[1]+j))
     return greyscale_values
+
     
     
 
