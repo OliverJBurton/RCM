@@ -241,9 +241,10 @@ class ExperimentGUI(tk.Tk):
   :param do_overrideredirect: removes the taskbar and makes screen unresponsive, used to full-screen. 
   :param grid_layout: number of columns and rows of the screen. 1 is the minimum.
   '''
-  def __init__(self, exp_screen_res=(1280, 720), greyscale=255, do_overrideredirect=True, grid_layout=(1, 1), refresh_rate_ms=3):
+  def __init__(self, exp_screen_res=(1920, 1080), greyscale=0, do_overrideredirect=True, grid_layout=(1, 1), refresh_rate_ms=3):
     super().__init__()
 
+    self.geometry("+0+0")
     self.exp_screen_res = exp_screen_res
     self.do_overrideredirect = do_overrideredirect
     self.refresh_rate_ms = refresh_rate_ms
@@ -310,10 +311,11 @@ class ExperimentGUI(tk.Tk):
     print(self.power_meter.get_power_reading_W_str())
 
 class DebugScreen(ExperimentGUI):
-  def __init__(self, greyscale=255, do_overrideredirect=True, grid_layout=(1,1)):
+  def __init__(self, greyscale=0, do_overrideredirect=True, grid_layout=(1,1)):
     super().__init__(greyscale=greyscale, do_overrideredirect=do_overrideredirect, grid_layout=grid_layout)
     print("Press 'f' to move screen to projector monitor and activate full screen")
     print("Press 'l' to obtain reading from power meter")
+    print("Press 'e' to end experiment")
 
     self.bind("<Key>", self.key_press)
   
@@ -322,6 +324,8 @@ class DebugScreen(ExperimentGUI):
       print(self.power_meter.get_power_reading_W_str())
     elif event.char == "f":
       self.activate_full_screen()
+    elif event.char == "e":
+      self.destroy()
 
 class GreyScaleEnergyExperiment(ExperimentGUI):
   '''
@@ -364,7 +368,7 @@ class GreyScaleEnergyExperiment(ExperimentGUI):
     self.background_energy = float(self.power_meter.get_power_reading_W_str())
 
     # Loops through the greyscale range starting from white
-    for i in range(255, 0, -self.step):
+    for i in range(0, 255, self.step):
       # Request main thread to update the greyscale
       self.make_call(self.set_greyscale, i)
       # Take readings
@@ -460,7 +464,7 @@ class PixelEnergyExperiment(ExperimentGUI):
 
     # Full screen and wait until full screen process is completed
     self.make_call(self.activate_full_screen)
-    time.sleep(0.5)
+    time.sleep(0.25)
 
     # Create list of dimensions for the corner of each pixel block, additional +1 as upper bound is included
     # x_coords = np.arange(0, self.exp_screen_res[0] + (2 - self.kernel_dim[0])*self.scale, step=self.scale, dtype=int)
@@ -511,7 +515,7 @@ class PixelEnergyExperiment(ExperimentGUI):
     Use data stored in file or variable self.energy_readings to plot. Each point is a fraction of the total light energy.
     '''
     data = self._get_file_data()
-    data = data / np.sum(data)
+    data = data #/ np.sum(data)
 
     plt.contourf( data, levels=30, cmap="RdGy")
     plt.colorbar()
@@ -522,8 +526,8 @@ class PixelEnergyExperiment(ExperimentGUI):
     # plt.contourf(full_energy_array, levels=20, cmap="RdGy")
     # plt.colorbar()
     # plt.show()
-  
   def plot_avg_pixel_energy_fraction(self, fileNames):
+
     '''
     Average the readings taken from a list of file names and plot it. Each point is a fraction of the total light energy
 
@@ -541,7 +545,7 @@ class PixelEnergyExperiment(ExperimentGUI):
 
   def interpolate_data(self, do_plot=True):
     data = self._get_file_data()
-    data = data/np.sum(data)
+    data = data /np.sum(data)
 
     M, N = data.shape
     x = np.arange(M)
@@ -594,16 +598,18 @@ class LightIntensityDetermination:
 
 # Time per measurement approximately 62.53 ms
 if __name__ == "__main__":
+  screen = DebugScreen(greyscale=255)
+  screen.mainloop()
   # screen = GreyScaleEnergyExperiment(step=1)
   # screen.greyscale_energy_experiment_thread.start()
   # screen.mainloop()
   # screen.plot_and_fit_greyscale_energy()
 
-  experiment = PixelEnergyExperiment(kernel_dim=(60, 60), scale=1)
+  # experiment = PixelEnergyExperiment(kernel_dim=(60, 60), scale=1)
   # experiment.pixel_energy_experiment_thread.start()
-  experiment.mainloop()
-  experiment.plot_pixel_energy_fraction()
-  experiment.interpolate_data()
+  # experiment.mainloop()
+  # experiment.plot_pixel_energy_fraction()
+  # experiment.interpolate_data()
   #
   # fileNames=[f"pixel_energy_readings_avg{i}.txt" for i in range(20)]
   # experiment.plot_avg_pixel_energy(fileNames)
