@@ -403,18 +403,18 @@ class GreyScaleEnergyExperiment(ExperimentGUI):
       print("No data available to plot!")
       return
 
-    greyscale, energy = data[:,0], data[:,1] - self.background_energy
+    greyscale, energy_proportion = data[:,0], data[:,1]/np.sum(data[:,1])
     
-    parameters = np.polyfit(greyscale, energy, order)
+    parameters = np.polyfit(greyscale, energy_proportion, order)
     energy_function_of_greyscale = np.poly1d(parameters)
 
-    parameters = np.polyfit(energy, greyscale, order)
+    parameters = np.polyfit(energy_proportion, greyscale, order)
     greyscale_function_of_energy = np.poly1d(parameters)
 
     if self.do_plot:
-      plt.plot(greyscale, energy, 'rx', greyscale, energy_function_of_greyscale(greyscale))
+      plt.plot(greyscale, energy_proportion, 'rx', greyscale, energy_function_of_greyscale(greyscale))
       plt.xlim((greyscale[0], greyscale[-1]))
-      plt.ylim(bottom=np.min(energy))
+      plt.ylim(bottom=np.min(energy_proportion))
       plt.xlabel("Greyscale")
       plt.ylabel("Light energy (W)")
       plt.show()
@@ -465,7 +465,7 @@ class PixelEnergyExperiment(ExperimentGUI):
 
     # Full screen and wait until full screen process is completed
     self.make_call(self.activate_full_screen)
-    time.sleep(5)
+    time.sleep(1)
 
     # Create list of dimensions for the corner of each pixel block, additional +1 as upper bound is included
     x_coords = np.arange(0, self.exp_screen_res[0], step=self.kernel_dim[0], dtype=int)
@@ -503,9 +503,9 @@ class PixelEnergyExperiment(ExperimentGUI):
         self.background_energy = float(lines[0])
         for line in lines[1:]:
           data.append(list(line.split(","))[:-1])
-      return np.array(data, dtype=np.float32) - self.background_energy
+      return np.array(data, dtype=np.float32)
     elif self.energy_readings != []:
-      return np.array(self.energy_readings, dtype=np.float32) - self.background_energy
+      return np.array(self.energy_readings, dtype=np.float32)
     else:
       print("No data available to plot!")
       return None
@@ -515,47 +515,160 @@ class PixelEnergyExperiment(ExperimentGUI):
     Use data stored in file or variable self.energy_readings to plot. Each point is a fraction of the total light energy.
     '''
     data = self._get_file_data()
-    data = data / np.sum(data)
 
     plt.contourf( data, levels=30, cmap="RdGy")
     plt.colorbar()
     plt.show()
 
-  def plot_avg_pixel_energy_fraction(self, fileNames):
-
-    '''
-    Average the readings taken from a list of file names and plot it. Each point is a fraction of the total light energy
-
-    :param fileNames: list of file names to take readings from
-    '''
-    data = 0
-    for fileName in fileNames:
-      self.fileName = fileName
-      data += self._get_file_data()
-
-    avg_data = data / len(fileNames) / np.sum(data)
-    plt.contourf(avg_data, levels=30, cmap="RdGy")
-    plt.colorbar()
-    plt.show()
-
   def interpolate_data(self):
     data = self._get_file_data()
-    data = data /np.sum(data)
 
     M, N = data.shape
     x = np.arange(M)
     y = np.arange(N)
     interp = RegularGridInterpolator([x, y], data)
+
+    # Create Matrix with size equal to resolution of projector screen
+    xx = np.linspace(0, M-1, self.exp_screen_res[0])
+    yy = np.linspace(0, N-1, self.exp_screen_res[1])
+    X, Y = np.meshgrid(xx, yy, indexing="ij")
+
+    # Interpolated array of f_x_y for all pixels on the projector screen
+    Z = interp((X, Y))
+    
     if self.do_plot:
-      xx = np.linspace(0, M-1, 100)
-      yy = np.linspace(0, N-1, 100)
-      X, Y = np.meshgrid(xx, yy, indexing="ij")
-      Z = interp((X, Y))
       plt.contourf(Z, levels=30, cmap="RdGy")
       plt.colorbar()
       plt.show()
 
-    return interp
+    return Z
+
+class LightIntensityDetermination:
+  """
+  Performs the greyscale energy and pixel energy experiment to determine the required greyscale to project the desired light intensity on a point on the sample
+
+  :param kernel_dim: size of the kernels used in the pixel energy experiment
+  :param do_plot: plot figures of the result of both experiments
+  """
+  def __init__(self, image_path="", kernel_dim=(60,60), do_plot=True, use_stored_data=False):
+    """
+    Rescaling equation
+    E_xy: energy of pixel at position (x, y)
+    E_max_xy: maximum energy of pixel at position (x, y)
+    B_xy: background energy of pixel at position (x, y)
+    min_E_max: smallest maximum energy of all the pixels (pixel with this energy is the limiting pixel)
+    min_B: background energy of the limiting pixel
+
+    corrected_E - min_B = (E_xy - B_xy) / (E_max_xy - B_xy) * (min_E_max - min_B)
+    
+    """
+
+    # Deal with zero values
+
+    # Obtain relationship between greyscale and light energy
+    experiment1 = GreyScaleEnergyExperiment(do_plot=do_plot)
+    if not use_stored_data:
+      experiment1.greyscale_energy_experiment_thread.start()
+      experiment1.mainloop()
+    else:
+      experiment1.end_experiment()
+
+    self.energy_function_of_greyscale, self.greyscale_function_of_energy = experiment1.plot_and_fit_greyscale_energy()
+
+    # Obtain f(x, y): 
+    experiment2 = PixelEnergyExperiment(kernel_dim=kernel_dim, do_plot=do_plot)
+    if not use_stored_data:
+      experiment2.pixel_energy_experiment_thread.start()
+      experiment2.mainloop()
+    else:
+      experiment2.end_experiment()
+
+    # Add cutoff
+    self.f_x_y = experiment2.interpolate_data() # Also is max energy array
+
+    # Open image in greyscale mode, scale it to resolution of projector screen
+    # Possible error could arise if image as a transparency channel
+    image_array = np.asarray(Image.open(image_path).convert("L"))
+
+    # Determines what the image would look like without any correction
+    energy_array = self.energy_function_of_greyscale(image_array) * self.f_x_y
+    background_energy_array = self.energy_function_of_greyscale(0) * self.f_x_y
+    min_energy_max = np.min(energy_array)
+    min_background_energy = np.min(background_energy_array)
+
+    # Apply rescaling
+    corrected_energy_array = (energy_array - background_energy_array) / (self.f_x_y - background_energy_array) * (min_energy_max - min_background_energy) + min_background_energy
+    corrected_greyscale_array = self.greyscale_function_of_energy(corrected_energy_array)
+
+    corrected_image = Image.fromarray(corrected_greyscale_array, "L")
+    corrected_image.show()
+    corrected_image_path = f"{image_path.split(".")[0]}_corrected.{image_path.split(".")[1]}"
+    corrected_image.save(corrected_image)
+
+
+# Time per measurement approximately 62.53 ms
+if __name__ == "__main__":
+  # screen = DebugScreen(greyscale=0)
+  # screen.mainloop()
+  # screen = GreyScaleEnergyExperiment()
+  # screen.greyscale_energy_experiment_thread.start()
+  # screen.mainloop()
+  # screen.plot_and_fit_greyscale_energy()
+
+  # experiment = PixelEnergyExperiment(kernel_dim=(60, 60))
+  # experiment.pixel_energy_experiment_thread.start()
+  # experiment.mainloop()
+  # experiment.plot_pixel_energy_fraction()
+  # experiment.interpolate_data()
+
+  # screen = LightIntensityDetermination()
+
+  screen = ParticleGrowthExperiment(grid_layout=(1,1), padding=(0, 0), num_points=1, intensities=[10**(-8)], do_plot=False)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  # def open_scale_image(self, image_path):
+  #   """
+  #   Opens image, scales it to the resolution of the projector screen, padding missing parts
+
+  #   :param image_path: path to the image
+  #   :returns: numpy array of the padded, rescaled image
+
+  #   """
+
+  #   # Opens image and converts it into greyscale mode
+  #   image = Image.open(image_path).convert("L")
+  #   image_dim = image.size
+
+  #   # Determine which dimension to scale up
+  #   width_resize_factor = self.exp_screen_res[0] / image_dim[0]
+  #   if image_dim[1]*width_resize_factor > self.exp_screen_res[1]:
+  #     height_resize_factor = self.exp_screen_res[1] / image_dim[1]
+  #     new_size = (int(image_dim[0]*height_resize_factor), self.exp_screen_res[1])
+  #   else:
+  #     new_size = (self.exp_screen_res[0], int(image_dim[1]*width_resize_factor))
+    
+  #   offset = ((self.exp_screen_res[0] - new_size[0])//2, (self.exp_screen_res[1] - new_size[1])//2)
+  #   scaled_image = image.resize(new_size)
+
+  #   # Creates a new black image with resolution of the projector screen 
+  #   # Paste the scaled_image with an offset from the top left corner to put it in the center
+  #   padded_rescaled_image = Image.new(scaled_image.mode, self.exp_screen_res, 0)
+  #   padded_rescaled_image.paste(scaled_image, offset)
+
+  #   return np.asarray(padded_rescaled_image)
 
 class ParticleGrowthExperiment(ExperimentGUI):
   """
@@ -601,67 +714,3 @@ class ParticleGrowthExperiment(ExperimentGUI):
       corner_coordinate[0] + self.grid_dim[0] - padding[0],
       corner_coordinate[1] + self.grid_dim[1] - padding[1],
       fill=f"#{self.greyscale[i]:02X}{self.greyscale[i]:02X}{self.greyscale[i]:02X}")
-
-class LightIntensityDetermination:
-  """
-  Performs the greyscale energy and pixel energy experiment to determine the required greyscale to project the desired light intensity on a point on the sample
-
-  :param kernel_dim: size of the kernels used in the pixel energy experiment
-  :param do_plot: plot figures of the result of both experiments
-  """
-  def __init__(self, kernel_dim=(60,60), do_plot=True, use_stored_data=False):
-    # All of these relationships are obtained for a particular current
-
-    # Obtain relationship between greyscale and light energy
-    experiment1 = GreyScaleEnergyExperiment(do_plot=do_plot)
-    if not use_stored_data:
-      experiment1.greyscale_energy_experiment_thread.start()
-      experiment1.mainloop()
-    else:
-      experiment1.end_experiment()
-
-    self.energy_function_of_greyscale, self.greyscale_function_of_energy = experiment1.plot_and_fit_greyscale_energy()
-
-    # Obtain f(x, y): 
-    experiment2 = PixelEnergyExperiment(kernel_dim=kernel_dim, do_plot=do_plot)
-    if not use_stored_data:
-      experiment2.pixel_energy_experiment_thread.start()
-      experiment2.mainloop()
-    else:
-      experiment2.end_experiment()
-
-    self.f_x_y = experiment2.interpolate_data()
-    self.background_energy_per_pixel = experiment2.background_energy / (experiment2.exp_screen_res[0]*experiment2.exp_screen_res[1])
-
-  def obtain_required_greyscale(self, wanted_light_intensity, grid_dim, corner_coord):
-    pixel_area = 1 #(-6)
-    num_pixels = grid_dim[0]*grid_dim[1]
-    greyscale_values = np.zeros(num_pixels).reshape(grid_dim)
-
-    for i in range(grid_dim[0]):
-      for j in range(grid_dim[1]):
-        wanted_energy = wanted_light_intensity*pixel_area
-        # Instead of total background energy, we probably wanna measure the background energy without the reflected portions
-        greyscale_values[i,j] = self.greyscale_function_of_energy((wanted_energy - self.background_energy_per_pixel) / self.f_x_y((corner_coord[0]+j, corner_coord[1]+j)))
-    return greyscale_values
-
-
-
-# Time per measurement approximately 62.53 ms
-if __name__ == "__main__":
-  # screen = DebugScreen(greyscale=0)
-  # screen.mainloop()
-  # screen = GreyScaleEnergyExperiment()
-  # screen.greyscale_energy_experiment_thread.start()
-  # screen.mainloop()
-  # screen.plot_and_fit_greyscale_energy()
-
-  # experiment = PixelEnergyExperiment(kernel_dim=(60, 60))
-  # experiment.pixel_energy_experiment_thread.start()
-  # experiment.mainloop()
-  # experiment.plot_pixel_energy_fraction()
-  # experiment.interpolate_data()
-
-  # screen = LightIntensityDetermination()
-
-  screen = ParticleGrowthExperiment(grid_layout=(1,1), padding=(0, 0), num_points=1, intensities=[10**(-8)], do_plot=False)
