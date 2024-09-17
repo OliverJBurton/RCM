@@ -9,8 +9,6 @@ from PIL import Image, ImageTk
 import matplotlib.pyplot as plt
 from scipy.interpolate import RegularGridInterpolator
 import random
-
-from skimage import restoration
 """
 Note resolution of experiment screen is 1920 x 1080
 Note greyscale is inverted on the projector to that on the main screen
