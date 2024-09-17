@@ -609,20 +609,26 @@ class LightIntensityDetermination:
   :param kernel_dim: size of the kernels used in the pixel energy experiment
   :param do_plot: plot figures of the result of both experiments
   """
-  def __init__(self, kernel_dim=(60,60), do_plot=True):
+  def __init__(self, kernel_dim=(60,60), do_plot=True, use_stored_data=False):
     # All of these relationships are obtained for a particular current
 
     # Obtain relationship between greyscale and light energy
     experiment1 = GreyScaleEnergyExperiment(do_plot=do_plot)
-    experiment1.greyscale_energy_experiment_thread.start()
-    experiment1.mainloop()
+    if not use_stored_data:
+      experiment1.greyscale_energy_experiment_thread.start()
+      experiment1.mainloop()
+    else:
+      experiment1.end_experiment()
 
     self.energy_function_of_greyscale, self.greyscale_function_of_energy = experiment1.plot_and_fit_greyscale_energy()
 
     # Obtain f(x, y): 
     experiment2 = PixelEnergyExperiment(kernel_dim=kernel_dim, do_plot=do_plot)
-    experiment2.pixel_energy_experiment_thread.start()
-    experiment2.mainloop()
+    if not use_stored_data:
+      experiment2.pixel_energy_experiment_thread.start()
+      experiment2.mainloop()
+    else:
+      experiment2.end_experiment()
 
     self.f_x_y = experiment2.interpolate_data()
     self.background_energy_per_pixel = experiment2.background_energy / (experiment2.exp_screen_res[0]*experiment2.exp_screen_res[1])
@@ -658,4 +664,4 @@ if __name__ == "__main__":
 
   # screen = LightIntensityDetermination()
 
-  screen = ParticleGrowthExperiment(grid_layout=(1,1), padding=(0, 0), num_points=1, intensities=[10**(-8)])
+  screen = ParticleGrowthExperiment(grid_layout=(1,1), padding=(0, 0), num_points=1, intensities=[10**(-8)], do_plot=False)
