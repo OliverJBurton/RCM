@@ -247,7 +247,7 @@ class ExperimentGUI(tk.Tk):
   :param do_overrideredirect: removes the taskbar and makes screen unresponsive, used to full-screen. 
   :param grid_layout: number of columns and rows of the screen. 1 is the minimum.
   '''
-  def __init__(self, exp_screen_res=(1920, 1080), greyscale=255, do_overrideredirect=True, refresh_rate_ms=3, do_plot=True):
+  def __init__(self, file_name="", exp_screen_res=(1920, 1080), greyscale=255, do_overrideredirect=True, refresh_rate_ms=3, do_plot=True):
     super().__init__()
 
     self.geometry("+0+0")
@@ -255,6 +255,7 @@ class ExperimentGUI(tk.Tk):
     self.do_overrideredirect = do_overrideredirect
     self.refresh_rate_ms = refresh_rate_ms
     self.do_plot = do_plot
+    self.file_name = file_name
 
     self.title("Experiment")
     self.columnconfigure(0, weight=1)
@@ -286,6 +287,20 @@ class ExperimentGUI(tk.Tk):
     self.overrideredirect(self.do_overrideredirect)
 
     self.geometry('%dx%d%+d+%d'%(self.exp_screen_res[0], self.exp_screen_res[1], 0, 0))
+  
+  def _get_file_data(self, readings):
+    if self.fileName != "":
+      data = []
+      with open(self.fileName, "r") as file:
+        lines = file.readlines()
+        for line in lines:
+          data.append(line.split(","))
+      return np.array(data, dtype=np.float32)
+    elif readings != []:
+      return np.array(readings, dtype=np.float32)
+    else:
+      print("No data available to plot!")
+      return None
   
   def end_experiment(self):
     '''
@@ -320,23 +335,34 @@ class ExperimentGUI(tk.Tk):
     # Put onto event queue
     self.request_queue.put(data)
     data.reply_event.wait()
-  def take_measurement(self):
-    print(self.power_meter.get_power_reading_W_str())
 
 class DebugScreen(ExperimentGUI):
-  def __init__(self, greyscale=255, do_overrideredirect=True):
+  def __init__(self, greyscale=255, do_overrideredirect=True, image_path=""):
     super().__init__(greyscale=greyscale, do_overrideredirect=do_overrideredirect)
+    if image_path != "":
+      bg = tk.PhotoImage(file=image_path)
+      self.canvas.create_image(0, 0, image=bg, anchor="nw")
+
     print("Press 'f' to move screen to projector monitor and activate full screen")
     print("Press 'l' to obtain reading from power meter")
+    print("Press 'g' to change greyscale values")
     print("Press 'e' to end experiment")
 
     self.bind("<Key>", self.key_press)
+
+    self.mainloop()
   
   def key_press(self, event):
     if event.char == "l":
       print(self.power_meter.get_power_reading_W_str())
     elif event.char == "f":
       self.activate_full_screen()
+    elif event.char == "g":
+      greyscale = input("Enter new greyscale value (0-255): ")
+      if type(greyscale) != type(1) or greyscale < 0 or greyscale > 255:
+        print("Not a valid greyscale value!")
+      else:
+        self.canvas.config(bg=f"#{greyscale:02X}{greyscale:02X}{greyscale:02X}")
     elif event.char == "e":
       self.destroy()
 
@@ -347,14 +373,12 @@ class GreyScaleEnergyExperiment(ExperimentGUI):
   :param step: the interval between greyscale values wherein measurements are taken
   '''
 
-  def __init__(self, fileName="greyscale_energy_readings.txt", do_plot=True):
-    super().__init__(greyscale=0, do_plot=do_plot)
-
-    self.fileName = fileName
+  def __init__(self, file_name="greyscale_energy_readings.txt", do_plot=True):
+    super().__init__(file_name=file_name, greyscale=0, do_plot=do_plot)
 
     # Greyscale energy experiment parameters
     self.greyscale_energy_readings = []
-    self.background_energy = 0
+
     # Creates a daemon thread for the greyscale energy experiment to run in the background
     self.greyscale_energy_experiment_thread = Thread(target=self.greyscale_energy_experiment, daemon=True)
 
@@ -377,7 +401,7 @@ class GreyScaleEnergyExperiment(ExperimentGUI):
     # Full screen and wait until full screen process is finished
     self.make_call(self.activate_full_screen)
     time.sleep(1)
-    self.background_energy = float(self.power_meter.get_power_reading_W_str())
+    print(f"The background energy is: {self.power_meter.get_power_reading_W_str()} W")
 
     # Loops through the greyscale range starting from white
     for i in range(0, 255, 1):
@@ -388,7 +412,6 @@ class GreyScaleEnergyExperiment(ExperimentGUI):
 
     # Write to file
     with open(self.fileName, "w") as file:
-      file.write(f"{self.background_energy}\n")
       for reading in self.greyscale_energy_readings:
         file.write(f"{reading[0]},{reading[1]}\n")
 
@@ -403,19 +426,7 @@ class GreyScaleEnergyExperiment(ExperimentGUI):
     :param fileName: name of textfile storing the data.
     :param order: order of the polynomial fitted
     '''
-    if self.fileName != "":
-      data = []
-      with open(self.fileName, "r") as file:
-        lines = file.readlines()
-        self.background_energy = float(lines[0])
-        for line in lines[1:]:
-          data.append(list(line.split(",")))
-      data = np.array(data, dtype=np.float32)
-    elif self.greyscale_energy_readings != []:
-      data = np.array(self.greyscale_energy_readings, dtype=np.float32)
-    else:
-      print("No data available to plot!")
-      return
+    self._get_file_data(self.greyscale_energy_readings)
 
     greyscale, energy_proportion = data[:,0], data[:,1]/np.max(data[:,1])
     
@@ -443,36 +454,41 @@ class PixelEnergyExperiment(ExperimentGUI):
   :param scale: effectively reduces the resolution of the display by 8 in both dimension, reduces time for experiment to complete
 
   '''
-  def __init__(self, kernel_dim=(60, 60), fileName="pixel_energy_readings.txt", do_plot=True):
-    super().__init__(greyscale=0, do_plot=do_plot)
+  def __init__(self, kernel_dim=(60, 60), file_name="pixel_energy_readings.txt", image_path="", do_plot=True):
+    super().__init__(file_name=file_name, do_plot=do_plot)
 
-    self.fileName = fileName
+    # Create image 
+    self.image_path = image_path
+    if self.image_path != "":
+      bg = tk.PhotoImage(self.image_path)
+      self.canvas.create_image(0, 0, image=bg, anchor="nw")
+    
+    # Set up grid of rectangles, gets background reading, then set first rectangle to be transparent
+    self.rectangles_list = []
+    for column in range(0, self.exp_screen_res[0], kernel_dim[0]):
+      for row in range(0, self.exp_screen_res[1], kernel_dim[1]):
+        self.rectangles_list.append(self.canvas.create_rectangle(column, row, column+kernel_dim[0], row+kernel_dim[1], fill="#FFFFFF"))
 
     # Pixel energy experiment parameters
     self.kernel_dim = kernel_dim
     self.energy_readings = []
-    self.background_energy = 0
+
     # Creates a daemon thread for the pixel energy experiment to run in the background 
     self.pixel_energy_experiment_thread = Thread(target=self.pixel_energy_experiment, daemon=True)
 
     self.after(self.refresh_rate_ms, self.call_handler)
 
-  def create_rectangle(self):
-    """
-    Creates a rectangle in the upper left hand corner of the screen
-    """
-    self.rectangle = self.canvas.create_rectangle(0, 0, self.kernel_dim[0], self.kernel_dim[1], fill="#FFFFFF", width=0)
-
-  def move_rectangle(self, x_coord, y_coord):
+  def move_hole(self, i):
     '''
-    Moves the rectangle to the new coordinate (x_coord, y_coord)
+    Sets rectangle at index i to be transparent, sets previous rectangle to be black
     '''
-    self.canvas.moveto(self.rectangle, x_coord, y_coord)
+    self.canvas.itemconfig(self.rectangles_list[i], fill="")
+    self.canvas.itemconfig(self.rectangles_list[i-1], fill="#FFFFFF")
   
   def pixel_energy_experiment(self):
     '''
     Runs the experiment to determine how much each block of pixels contributes to the overall light energy at the end of the microscope
-    Stores data in text file called pixel_energy_readings.txt
+    By default, stores data in text file called pixel_energy_readings.txt
     '''
 
     print("Begin Experiment")
@@ -481,61 +497,34 @@ class PixelEnergyExperiment(ExperimentGUI):
     self.make_call(self.activate_full_screen)
     time.sleep(1)
 
-    # Create list of dimensions for the corner of each pixel block, additional +1 as upper bound is included
-    x_coords = np.arange(0, self.exp_screen_res[0], step=self.kernel_dim[0], dtype=int)
-    y_coords = np.arange(0, self.exp_screen_res[1], step=self.kernel_dim[1], dtype=int)
-
     # Loop through the all possible locations of the pixel block
+    print(f"The background energy is: {self.power_meter.get_power_reading_W_str()} W")
+
+    for i in range(1, len(rectangles_list)):
+      self.make_call(self.move_hole, i)
+      self.energy_readings.append(self.power_meter.get_power_reading_W_str())
+
+    # Write to file
     with open(self.fileName, "w") as file:
-      self.background_energy = float(self.power_meter.get_power_reading_W_str())
-      print(self.background_energy)
-      file.write(f"{self.background_energy}\n")
-      self.make_call(self.create_rectangle)
-      for y_coord in y_coords:
-        # To store a width of energy values
-        temp = []
-        for x_coord in x_coords:
-          # Request main thread to move the block of darkened pixels
-          self.make_call(self.move_rectangle, x_coord, y_coord)
-
-          temp.append(self.power_meter.get_power_reading_W_str())
-          # Write data to textfile
-        file.write(",".join(temp) + "\n")
-
-        self.energy_readings.append(temp)
-    file.close()
+      for reading in self.energy_readings:
+        file.write(f"{reading}\n")
 
     # Request main thread to end experiment
     print("End Experiment")
     self.make_call(self.destroy)
 
-  def _get_file_data(self):
-    if self.fileName != "":
-      data = []
-      with open(self.fileName, "r") as file:
-        lines = file.readlines()
-        self.background_energy = float(lines[0])
-        for line in lines[1:]:
-          data.append(list(line.split(","))[:-1])
-      return np.array(data, dtype=np.float32)
-    elif self.energy_readings != []:
-      return np.array(self.energy_readings, dtype=np.float32)
-    else:
-      print("No data available to plot!")
-      return None
-
   def plot_pixel_energy_fraction(self):
     '''
     Use data stored in file or variable self.energy_readings to plot. Each point is a fraction of the total light energy.
     '''
-    data = self._get_file_data()
+    data = self._get_file_data(self.energy_readings)
 
     plt.contourf( data, levels=30, cmap="RdGy")
     plt.colorbar()
     plt.show()
 
   def interpolate_data(self):
-    data = self._get_file_data()
+    data = self._get_file_data(self.energy_readings)
 
     M, N = data.shape
     x = np.arange(M)
@@ -577,8 +566,6 @@ class LightIntensityDetermination:
     
     """
 
-    # Deal with zero values
-
     # Obtain relationship between greyscale and light energy
     experiment1 = GreyScaleEnergyExperiment(do_plot=do_plot)
     if not use_stored_data:
@@ -612,11 +599,6 @@ class LightIntensityDetermination:
     background_energy_array = self.energy_function_of_greyscale(0) * self.f_x_y
     min_energy_max = np.min(self.f_x_y[:,120:-1])
     min_background_energy = np.min(background_energy_array[:,120:-1])
-
-    # print(min_energy_max)
-    # print(np.max(self.f_x_y))
-    # print(min_background_energy)
-    # print(np.max(background_energy_array))
 
     # Apply rescaling
     corrected_energy_array = (energy_array - background_energy_array) / (self.f_x_y - background_energy_array) * (min_energy_max - min_background_energy) + min_background_energy
@@ -665,8 +647,8 @@ class LightIntensityDetermination:
 
 # Time per measurement approximately 62.53 ms
 if __name__ == "__main__":
-  screen = DebugScreen(greyscale=0)
-  screen.mainloop()
+  # screen = DebugScreen(greyscale=0)
+
   # screen = GreyScaleEnergyExperiment()
   # screen.greyscale_energy_experiment_thread.start()
   # screen.mainloop()
@@ -680,7 +662,14 @@ if __name__ == "__main__":
 
   # screen = LightIntensityDetermination()
 
-  # screen = LightIntensityDetermination(image_path="C:\\Users\\whw29\\Desktop\\test.png", do_plot=False, use_stored_data=True)
+  experiment = PixelEnergyExperiment(image_path="C:\\Users\\whw29\\Desktop\\test.png")
+  experiment.pixel_energy_experiment_thread.start()
+  experiment.mainloop()
+  screen = LightIntensityDetermination(image_path="C:\\Users\\whw29\\Desktop\\test.png", do_plot=False, use_stored_data=True)
+  experiment = PixelEnergyExperiment(image_path="C:\\Users\\whw29\\Desktop\\test_corrected.png")
+  experiment.pixel_energy_experiment_thread.start()
+  experiment.mainloop()
+
 
 
 
@@ -688,8 +677,7 @@ if __name__ == "__main__":
 Tasks
 1. Need pixel area
 2. Correction factor from 405 nm to 365nm
-3. Round to the nearest 1 nm
-4. Test program
+3. Test program
 """
 
 
