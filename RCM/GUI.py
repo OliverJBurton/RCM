@@ -665,8 +665,8 @@ class LightIntensityDetermination:
 
 # Time per measurement approximately 62.53 ms
 if __name__ == "__main__":
-  # screen = DebugScreen(greyscale=0)
-  # screen.mainloop()
+  screen = DebugScreen(greyscale=0)
+  screen.mainloop()
   # screen = GreyScaleEnergyExperiment()
   # screen.greyscale_energy_experiment_thread.start()
   # screen.mainloop()
@@ -680,11 +680,17 @@ if __name__ == "__main__":
 
   # screen = LightIntensityDetermination()
 
-  screen = LightIntensityDetermination(image_path="C:\\Users\\whw29\\Desktop\\test.png", do_plot=False, use_stored_data=True)
+  # screen = LightIntensityDetermination(image_path="C:\\Users\\whw29\\Desktop\\test.png", do_plot=False, use_stored_data=True)
 
 
 
-
+"""
+Tasks
+1. Need pixel area
+2. Correction factor from 405 nm to 365nm
+3. Round to the nearest 1 nm
+4. Test program
+"""
 
 
 
