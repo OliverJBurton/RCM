@@ -18,7 +18,7 @@ class DC2200:
         # *IDN? returns the identification of the device.
         print("Used device:", self.instr.query("*IDN?"))
 
-    def set_brightness(self,percent=1.1):
+    def set_brightness(self, percent=1.1):
         # The command instr.write can be used to write data to the device when you do not expect a response from the device.
         # Set the DC2200 to brightness mode, set the brightness level, switch the LED on.
         # see DC2200 documentation

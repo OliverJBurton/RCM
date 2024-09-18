@@ -1,14 +1,22 @@
 import time
-import tkinter as tk
-from threading import Thread, Event
-from queue import Empty, Queue
-from OpticalPowerMeter import PM16_120
-import customtkinter
+import random
+from PIL import Image
+
 import numpy as np
-from PIL import Image, ImageTk
 import matplotlib.pyplot as plt
 from scipy.interpolate import RegularGridInterpolator
-import random
+
+import tkinter as tk
+import customtkinter
+
+from threading import Thread, Event
+from queue import Empty, Queue
+
+from OpticalPowerMeter import PM16_120
+from light import DC2200
+
+
+
 """
 Note resolution of experiment screen is 1920 x 1080
 Note greyscale is inverted on the projector to that on the main screen
@@ -258,6 +266,11 @@ class ExperimentGUI(tk.Tk):
     # Initialise power meter
     self.power_meter = PM16_120()
 
+    # Initialise light
+    self.LED = DC2200()
+    self.LED.set_current_mA(current_mA=100)
+    self.LED.on()
+
     # Create event queue
     self.request_queue = Queue()
 
@@ -278,6 +291,7 @@ class ExperimentGUI(tk.Tk):
     '''
     Destroys window
     '''
+    self.LED.close()
     self.destroy()
   
   ## Daemon Functions
@@ -403,7 +417,7 @@ class GreyScaleEnergyExperiment(ExperimentGUI):
       print("No data available to plot!")
       return
 
-    greyscale, energy_proportion = data[:,0], data[:,1]/np.sum(data[:,1])
+    greyscale, energy_proportion = data[:,0], data[:,1]/np.max(data[:,1])
     
     parameters = np.polyfit(greyscale, energy_proportion, order)
     energy_function_of_greyscale = np.poly1d(parameters)
@@ -416,7 +430,7 @@ class GreyScaleEnergyExperiment(ExperimentGUI):
       plt.xlim((greyscale[0], greyscale[-1]))
       plt.ylim(bottom=np.min(energy_proportion))
       plt.xlabel("Greyscale")
-      plt.ylabel("Light energy (W)")
+      plt.ylabel("G")
       plt.show()
 
     return energy_function_of_greyscale, greyscale_function_of_energy
@@ -585,25 +599,68 @@ class LightIntensityDetermination:
 
     # Add cutoff
     self.f_x_y = experiment2.interpolate_data() # Also is max energy array
+    self.exp_screen_res = experiment2.exp_screen_res
 
     # Open image in greyscale mode, scale it to resolution of projector screen
     # Possible error could arise if image as a transparency channel
-    image_array = np.asarray(Image.open(image_path).convert("L"))
+    # image_array = np.asarray(Image.open(image_path).convert("L"))
+    np.set_printoptions(threshold=np.inf)
+    image_array = np.reshape(self.open_scale_image(image_path), self.exp_screen_res)
 
     # Determines what the image would look like without any correction
     energy_array = self.energy_function_of_greyscale(image_array) * self.f_x_y
     background_energy_array = self.energy_function_of_greyscale(0) * self.f_x_y
-    min_energy_max = np.min(energy_array)
-    min_background_energy = np.min(background_energy_array)
+    min_energy_max = np.min(self.f_x_y[:,120:-1])
+    min_background_energy = np.min(background_energy_array[:,120:-1])
+
+    # print(min_energy_max)
+    # print(np.max(self.f_x_y))
+    # print(min_background_energy)
+    # print(np.max(background_energy_array))
 
     # Apply rescaling
     corrected_energy_array = (energy_array - background_energy_array) / (self.f_x_y - background_energy_array) * (min_energy_max - min_background_energy) + min_background_energy
-    corrected_greyscale_array = self.greyscale_function_of_energy(corrected_energy_array)
 
-    corrected_image = Image.fromarray(corrected_greyscale_array, "L")
+    corrected_greyscale_array = np.round(np.reshape(self.greyscale_function_of_energy(corrected_energy_array/self.f_x_y), self.exp_screen_res[::-1] +(1,))).astype(np.uint8)
+    corrected_rgb_array = np.repeat(corrected_greyscale_array, 3, axis=2)
+    print(corrected_rgb_array.shape)
+
+    corrected_image = Image.fromarray(corrected_rgb_array, "RGB")
     corrected_image.show()
     corrected_image_path = f"{image_path.split(".")[0]}_corrected.{image_path.split(".")[1]}"
-    corrected_image.save(corrected_image)
+    corrected_image.save(corrected_image_path)
+
+  def open_scale_image(self, image_path):
+    """
+    Opens image, scales it to the resolution of the projector screen, padding missing parts
+
+    :param image_path: path to the image
+    :returns: numpy array of the padded, rescaled image
+
+    """
+
+    # Opens image and converts it into greyscale mode
+    image = Image.open(image_path).convert("L")
+    image_dim = image.size
+
+    # Determine which dimension to scale up
+    width_resize_factor = self.exp_screen_res[0] / image_dim[0]
+    if image_dim[1] * width_resize_factor > self.exp_screen_res[1]:
+      height_resize_factor = self.exp_screen_res[1] / image_dim[1]
+      new_size = (int(image_dim[0] * height_resize_factor), self.exp_screen_res[1])
+    else:
+      new_size = (self.exp_screen_res[0], int(image_dim[1] * width_resize_factor))
+
+    offset = ((self.exp_screen_res[0] - new_size[0]) // 2, (self.exp_screen_res[1] - new_size[1]) // 2)
+    scaled_image = image.resize(new_size)
+
+    # Creates a new black image with resolution of the projector screen
+    # Paste the scaled_image with an offset from the top left corner to put it in the center
+    padded_rescaled_image = Image.new(scaled_image.mode, self.exp_screen_res, 0)
+    padded_rescaled_image.paste(scaled_image, offset)
+    padded_rescaled_image.show()
+
+    return np.asarray(padded_rescaled_image)
 
 
 # Time per measurement approximately 62.53 ms
@@ -623,7 +680,7 @@ if __name__ == "__main__":
 
   # screen = LightIntensityDetermination()
 
-  screen = ParticleGrowthExperiment(grid_layout=(1,1), padding=(0, 0), num_points=1, intensities=[10**(-8)], do_plot=False)
+  screen = LightIntensityDetermination(image_path="C:\\Users\\whw29\\Desktop\\test.png", do_plot=False, use_stored_data=True)
 
 
 
@@ -632,43 +689,6 @@ if __name__ == "__main__":
 
 
 
-
-
-
-
-
-
-
-  # def open_scale_image(self, image_path):
-  #   """
-  #   Opens image, scales it to the resolution of the projector screen, padding missing parts
-
-  #   :param image_path: path to the image
-  #   :returns: numpy array of the padded, rescaled image
-
-  #   """
-
-  #   # Opens image and converts it into greyscale mode
-  #   image = Image.open(image_path).convert("L")
-  #   image_dim = image.size
-
-  #   # Determine which dimension to scale up
-  #   width_resize_factor = self.exp_screen_res[0] / image_dim[0]
-  #   if image_dim[1]*width_resize_factor > self.exp_screen_res[1]:
-  #     height_resize_factor = self.exp_screen_res[1] / image_dim[1]
-  #     new_size = (int(image_dim[0]*height_resize_factor), self.exp_screen_res[1])
-  #   else:
-  #     new_size = (self.exp_screen_res[0], int(image_dim[1]*width_resize_factor))
-    
-  #   offset = ((self.exp_screen_res[0] - new_size[0])//2, (self.exp_screen_res[1] - new_size[1])//2)
-  #   scaled_image = image.resize(new_size)
-
-  #   # Creates a new black image with resolution of the projector screen 
-  #   # Paste the scaled_image with an offset from the top left corner to put it in the center
-  #   padded_rescaled_image = Image.new(scaled_image.mode, self.exp_screen_res, 0)
-  #   padded_rescaled_image.paste(scaled_image, offset)
-
-  #   return np.asarray(padded_rescaled_image)
 
 class ParticleGrowthExperiment(ExperimentGUI):
   """
