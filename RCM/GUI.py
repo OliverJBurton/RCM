@@ -16,7 +16,7 @@ from queue import Empty, Queue
 from OpticalPowerMeter import PM16_120
 from light import DC2200
 
-
+# WHY DO YOU RESHAPE THE ARRAY
 
 """
 Note resolution of experiment screen is 1920 x 1080
@@ -594,7 +594,6 @@ class LightIntensityDetermination:
     else:
       experiment2.end_experiment()
 
-    # Add cutoff
     self.f_x_y = experiment2.interpolate_data() # Also is max energy array
     self.exp_screen_res = experiment2.exp_screen_res
 
@@ -602,7 +601,7 @@ class LightIntensityDetermination:
     # Possible error could arise if image as a transparency channel
     # image_array = np.asarray(Image.open(image_path).convert("L"))
     np.set_printoptions(threshold=np.inf)
-    image_array = np.reshape(self.open_scale_image(image_path), self.exp_screen_res)
+    image_array = self.open_scale_image(image_path).T
 
     # Determines what the image would look like without any correction
     energy_array = self.energy_function_of_greyscale(image_array) * self.f_x_y
@@ -619,7 +618,7 @@ class LightIntensityDetermination:
     corrected_energy_array = (energy_array - background_energy_array) / (self.f_x_y - background_energy_array) * (min_energy_max - min_background_energy) + min_background_energy
 
     # Round then convert to uint8 to prevent overflow errors when converting into RGB image
-    corrected_greyscale_array = np.round(np.reshape(self.greyscale_function_of_energy(corrected_energy_array/self.f_x_y, parameters), self.exp_screen_res[::-1] +(1,))).astype(np.uint8)
+    corrected_greyscale_array = np.round(np.reshape(self.greyscale_function_of_energy(corrected_energy_array/self.f_x_y, parameters).T, self.exp_screen_res +(1,))).astype(np.uint8)
     corrected_rgb_array = np.repeat(corrected_greyscale_array, 3, axis=2)
     corrected_image = Image.fromarray(corrected_rgb_array, "RGB")
     corrected_image.show()
