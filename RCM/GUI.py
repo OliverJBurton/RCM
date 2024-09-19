@@ -1,6 +1,7 @@
 import time
 import random
 from PIL import Image, ImageTk
+from math import fabs
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -366,21 +367,21 @@ class DebugScreen(ExperimentGUI):
     elif event.char == "e":
       self.destroy()
 
-class GreyScaleEnergyExperiment(ExperimentGUI):
+class GreyScalePowerExperiment(ExperimentGUI):
   '''
-  Determine the relationship between energy of light on the sample with respect to the greyscale of the image taken by the camera
+  Determine the relationship between power of light on the sample with respect to the greyscale of the image taken by the camera
 
   :param step: the interval between greyscale values wherein measurements are taken
   '''
 
-  def __init__(self, file_name="greyscale_energy_readings.txt", current_mA=100, do_plot=True):
+  def __init__(self, file_name="greyscale_power_readings.txt", current_mA=100, do_plot=True):
     super().__init__(file_name=file_name, greyscale=0, current_mA=current_mA, do_plot=do_plot)
 
-    # Greyscale energy experiment parameters
-    self.greyscale_energy_readings = []
+    # Greyscale power experiment parameters
+    self.greyscale_power_readings = []
 
-    # Creates a daemon thread for the greyscale energy experiment to run in the background
-    self.greyscale_energy_experiment_thread = Thread(target=self.greyscale_energy_experiment, daemon=True)
+    # Creates a daemon thread for the greyscale power experiment to run in the background
+    self.greyscale_power_experiment_thread = Thread(target=self.greyscale_power_experiment, daemon=True)
 
     self.after(self.refresh_rate_ms, self.call_handler)
 
@@ -390,10 +391,10 @@ class GreyScaleEnergyExperiment(ExperimentGUI):
     '''
     self.canvas.config(bg=f"#{greyscale:02X}{greyscale:02X}{greyscale:02X}")
 
-  def greyscale_energy_experiment(self):
+  def greyscale_power_experiment(self):
     '''
-    Runs experiment to obtain relationship between greyscale of the image projected and the light energy at the end of the microscope
-    Writes data to file called greyscale_energy_readings.txt (by default)
+    Runs experiment to obtain relationship between greyscale of the image projected and the light power at the end of the microscope
+    Writes data to file called greyscale_power_readings.txt (by default)
     '''
 
     print("Begin Experiment")
@@ -401,70 +402,74 @@ class GreyScaleEnergyExperiment(ExperimentGUI):
     # Full screen and wait until full screen process is finished
     self.make_call(self.activate_full_screen)
     time.sleep(1)
-    print(f"The background energy is: {self.power_meter.get_power_reading_W_str()} W")
+    print(f"The background power is: {self.power_meter.get_power_reading_W_str()} W")
 
     # Loops through the greyscale range starting from white
     for i in range(0, 255, 1):
       # Request main thread to update the greyscale
       self.make_call(self.set_greyscale, i)
       # Take readings
-      self.greyscale_energy_readings.append([i, float(self.power_meter.get_power_reading_W_str())])
+      self.greyscale_power_readings.append([i, float(self.power_meter.get_power_reading_W_str())])
 
     # Write to file
     with open(self.file_name, "w") as file:
-      for reading in self.greyscale_energy_readings:
+      for reading in self.greyscale_power_readings:
         file.write(f"{reading[0]},{reading[1]}\n")
 
     # Requests main thread to end experiment
     print("End Experiment")
     self.make_call(self.destroy)
 
-  def plot_and_fit_greyscale_energy(self, order=2):
+  def plot_and_fit_greyscale_power(self, order=2):
     '''
-    Plots and fits a polynomial to the light energy against the greyscale. Data taken from textfile or from self.greyscale_energy_readings
+    Plots and fits a polynomial to the light power against the greyscale. Data taken from textfile or from self.greyscale_power_readings
 
     :param fileName: name of textfile storing the data.
     :param order: order of the polynomial fitted
     '''
-    data = super()._get_file_data(readings=self.greyscale_energy_readings)
-
-    greyscale, energy_proportion = data[:,0], data[:,1]/np.max(data[:,1])
+    data = super()._get_file_data(readings=self.greyscale_power_readings)
     
-    parameters = np.polyfit(greyscale, energy_proportion, order)
-    energy_function_of_greyscale = np.poly1d(parameters)
-    def greyscale_function_of_energy(energy_proportion, parameters):
-      a, b, c = parameters
-      greyscale = (-b + np.sqrt(b**2 - 4*a*(c - energy_proportion)))/a/2
-      greyscale[greyscale > 255] = 255
-      greyscale[np.isnan(greyscale)] = 0
-      return greyscale
-
-    # parameters, cov = curve_fit(greyscale_function_of_energy, energy_proportion, greyscale)
+    greyscale_power_table = dict(data)
+    sorted_data = data[data[:,1].argsort()]
+    
+    def power_greyscale_table(sorted_data, value):
+      """
+      Bisection function
+      """
+      idx = np.searchsorted(sorted_data[:,1], value, side="left")
+      idx = np.where(idx > 0 and (idx == len(sorted_data) or fabs(value - sorted_data[idx-1,1]) < fabs(value - sorted_data[idx,1])), idx-1, idx)
+      return sorted_data[idx,0]
 
     if self.do_plot:
-      # plt.plot(greyscale, energy_proportion, 'rx', greyscale, energy_function_of_greyscale(greyscale))
-      # plt.xlim((greyscale[0], greyscale[-1]))
-      # plt.ylim(bottom=np.min(energy_proportion))
-      # plt.xlabel("Greyscale")
-      # plt.ylabel("G")
-      plt.plot(energy_proportion, greyscale, 'rx', energy_proportion, greyscale_function_of_energy(energy_proportion, parameters))
-      plt.xlim((energy_proportion[0], energy_proportion[-1]))
-      plt.ylim(bottom=np.min(greyscale))
-      plt.xlabel("G")
-      plt.ylabel("Greyscale")
+      greyscale, power_proportion = data[:,0], data[:,1]/np.max(data[:,1])
+      # Plot of greyscale (x-axis) vs G (y-axis)
+      fig, ax = plt.subplots(2, 1)
+      ax[0].plot(greyscale, power_proportion)
+      ax[0].set_xlim(greyscale[0], greyscale[-1])
+      ax[0].set_ylim(bottom=np.min(power_proportion))
+      ax[0].set_xlabel("Greyscale")
+      ax[0].set_ylabel("G")
+
+      # Plot of G (x-axis) vs greyscale (y-axis)
+      ax[1].plot(power_proportion, greyscale)
+      ax[1].set_xlim(np.min(power_proportion), np.max(power_proportion))
+      ax[1].set_ylim(np.min(greyscale), np.max(greyscale))
+      ax[1].set_xlabel("G")
+      ax[1].set_ylabel("Greyscale")
+
       plt.show()
 
-    return energy_function_of_greyscale, greyscale_function_of_energy, parameters
+    return greyscale_power_table, np.vectorize(power_greyscale_table), sorted_data
 
-class PixelEnergyExperiment(ExperimentGUI):
+class PixelPowerExperiment(ExperimentGUI):
   '''
-  Determines how much light energy each pixel contributes to the sample
+  Determines how much light power each pixel contributes to the sample
 
   :param kernel_dim: dimension of the kernel moved across the display
   :param scale: effectively reduces the resolution of the display by 8 in both dimension, reduces time for experiment to complete
 
   '''
-  def __init__(self, kernel_dim=(60, 60), file_name="pixel_energy_readings.txt", image_path="", current_mA=100, do_plot=True):
+  def __init__(self, kernel_dim=(60, 60), file_name="pixel_power_readings.txt", image_path="", current_mA=100, do_plot=True):
     super().__init__(file_name=file_name, current_mA=current_mA, do_plot=do_plot)
 
     # Create image 
@@ -480,12 +485,12 @@ class PixelEnergyExperiment(ExperimentGUI):
       for column in range(0, self.exp_screen_res[0], kernel_dim[0]):
         self.rectangles_list.append(self.canvas.create_rectangle(column, row, column+kernel_dim[0], row+kernel_dim[1], fill="#000000", width=0))
 
-    # Pixel energy experiment parameters
+    # Pixel power experiment parameters
     self.kernel_dim = kernel_dim
-    self.energy_readings = []
+    self.power_readings = []
 
-    # Creates a daemon thread for the pixel energy experiment to run in the background 
-    self.pixel_energy_experiment_thread = Thread(target=self.pixel_energy_experiment, daemon=True)
+    # Creates a daemon thread for the pixel power experiment to run in the background 
+    self.pixel_power_experiment_thread = Thread(target=self.pixel_power_experiment, daemon=True)
 
     self.after(self.refresh_rate_ms, self.call_handler)
 
@@ -496,10 +501,10 @@ class PixelEnergyExperiment(ExperimentGUI):
     self.canvas.itemconfig(self.rectangles_list[i], fill="")
     self.canvas.itemconfig(self.rectangles_list[i-1], fill="#000000")
   
-  def pixel_energy_experiment(self):
+  def pixel_power_experiment(self):
     '''
-    Runs the experiment to determine how much each block of pixels contributes to the overall light energy at the end of the microscope
-    By default, stores data in text file called pixel_energy_readings.txt
+    Runs the experiment to determine how much each block of pixels contributes to the overall light power at the end of the microscope
+    By default, stores data in text file called pixel_power_readings.txt
     '''
 
     print("Begin Experiment")
@@ -508,33 +513,33 @@ class PixelEnergyExperiment(ExperimentGUI):
     time.sleep(1)
 
     # Loop through the all possible locations of the pixel block
-    print(f"The background energy is: {self.power_meter.get_power_reading_W_str()} W")
+    print(f"The background power is: {self.power_meter.get_power_reading_W_str()} W")
 
     for i in range(len(self.rectangles_list)):
       self.make_call(self.move_hole, i)
-      self.energy_readings.append(self.power_meter.get_power_reading_W_str())
+      self.power_readings.append(self.power_meter.get_power_reading_W_str())
 
     # Write to file
     with open(self.file_name, "w") as file:
-      for reading in self.energy_readings:
+      for reading in self.power_readings:
         file.write(f"{reading}\n")
 
     # Request main thread to end experiment
     print("End Experiment")
     self.make_call(self.destroy)
 
-  def plot_pixel_energy_fraction(self):
+  def plot_pixel_power_fraction(self):
     '''
-    Use data stored in file or variable self.energy_readings to plot. Each point is a fraction of the total light energy.
+    Use data stored in file or variable self.power_readings to plot. Each point is a fraction of the total light power.
     '''
-    data = super()._get_file_data(readings=self.energy_readings).reshape((self.exp_screen_res[1]//self.kernel_dim[1], self.exp_screen_res[0]//self.kernel_dim[0]))
+    data = super()._get_file_data(readings=self.power_readings).reshape((self.exp_screen_res[1]//self.kernel_dim[1], self.exp_screen_res[0]//self.kernel_dim[0]))
 
     plt.contourf(data, levels=30, cmap="RdGy")
     plt.colorbar()
     plt.show()
 
   def interpolate_data(self):
-    data = super()._get_file_data(readings=self.energy_readings).reshape((self.exp_screen_res[1]//self.kernel_dim[1], self.exp_screen_res[0]//self.kernel_dim[0]))
+    data = super()._get_file_data(readings=self.power_readings).reshape((self.exp_screen_res[1]//self.kernel_dim[1], self.exp_screen_res[0]//self.kernel_dim[0]))
 
     M, N = data.shape
     x = np.arange(M)
@@ -558,67 +563,63 @@ class PixelEnergyExperiment(ExperimentGUI):
 
 class LightIntensityDetermination:
   """
-  Performs the greyscale energy and pixel energy experiment to determine the required greyscale to project the desired light intensity on a point on the sample
+  Performs the greyscale power and pixel power experiment to determine the required greyscale to project the desired light intensity on a point on the sample
 
-  :param kernel_dim: size of the kernels used in the pixel energy experiment
+  :param kernel_dim: size of the kernels used in the pixel power experiment
   :param do_plot: plot figures of the result of both experiments
   """
   def __init__(self, image_path="", kernel_dim=(60,60), do_plot=True, use_stored_data=False):
     """
     Rescaling equation
-    E_xy: energy of pixel at position (x, y)
-    E_max_xy: maximum energy of pixel at position (x, y)
-    B_xy: background energy of pixel at position (x, y)
-    min_E_max: smallest maximum energy of all the pixels (pixel with this energy is the limiting pixel)
-    min_B: background energy of the limiting pixel
+    E_xy: power of pixel at position (x, y)
+    E_max_xy: maximum power of pixel at position (x, y)
+    B_xy: background power of pixel at position (x, y)
+    min_E_max: smallest maximum power of all the pixels (pixel with this power is the limiting pixel)
+    min_B: background power of the limiting pixel
 
     corrected_E - min_B = (E_xy - B_xy) / (E_max_xy - B_xy) * (min_E_max - min_B)
     
     """
 
-    # Obtain relationship between greyscale and light energy
-    experiment1 = GreyScaleEnergyExperiment(do_plot=do_plot)
+    # Obtain relationship between greyscale and light power
+    experiment1 = GreyScalePowerExperiment(do_plot=do_plot)
     if not use_stored_data:
-      experiment1.greyscale_energy_experiment_thread.start()
+      experiment1.greyscale_power_experiment_thread.start()
       experiment1.mainloop()
     else:
       experiment1.end_experiment()
 
-    self.energy_function_of_greyscale, self.greyscale_function_of_energy, parameters = experiment1.plot_and_fit_greyscale_energy()
+    self.greyscale_power_table, self.power_greyscale_table, parameters = experiment1.plot_and_fit_greyscale_power()
 
     # Obtain f(x, y): 
-    experiment2 = PixelEnergyExperiment(kernel_dim=kernel_dim, do_plot=do_plot)
+    experiment2 = PixelPowerExperiment(kernel_dim=kernel_dim, do_plot=do_plot)
     if not use_stored_data:
-      experiment2.pixel_energy_experiment_thread.start()
+      experiment2.pixel_power_experiment_thread.start()
       experiment2.mainloop()
     else:
       experiment2.end_experiment()
 
-    self.f_x_y = experiment2.interpolate_data() # Also is max energy array
+    self.f_x_y = experiment2.interpolate_data() # Also is max power array
     self.exp_screen_res = experiment2.exp_screen_res
 
     # Open image in greyscale mode, scale it to resolution of projector screen
     # Possible error could arise if image as a transparency channel
-    # image_array = np.asarray(Image.open(image_path).convert("L"))
+    # image_array = np.asarray(Image.open(image_path).convert("L"), dtype=np.uint8)
     np.set_printoptions(threshold=np.inf)
-    image_array = self.open_scale_image(image_path).T
+    greyscale_array = self.open_scale_image(image_path).T
 
-    # Determines what the image would look like without any correction
-    energy_array = self.energy_function_of_greyscale(image_array) * self.f_x_y
-    background_energy_array = self.energy_function_of_greyscale(0) * self.f_x_y
-    min_energy_max = np.min(self.f_x_y[:,120:-60])
-    min_background_energy = np.min(background_energy_array[:,120:-60])
-
-    print(np.max(self.f_x_y))
-    print(np.max(background_energy_array))
-    print(min_energy_max)
-    print(min_background_energy)
+    # Get range
+    max_power, min_power = np.min(self.f_x_y[:,120:-60]), np.min(self.greyscale_power_table[0]*self.f_x_y)
+    power_array = np.vectorize(self.greyscale_power_table.get)(greyscale_array)
+    scaled_power_array = power_array / np.max(power_array) * (max_power - min_power) + min_power
+    G_array = scaled_power_array / self.f_x_y
+    corrected_greyscale_array = 
 
     # Apply rescaling
-    corrected_energy_array = (energy_array - background_energy_array) / (self.f_x_y - background_energy_array) * (min_energy_max - min_background_energy) + min_background_energy
+    corrected_power_array = (power_array - background_power_array) / (self.f_x_y - background_power_array) * (min_power_max - min_background_power) + min_background_power
 
     # Round then convert to uint8 to prevent overflow errors when converting into RGB image
-    corrected_greyscale_array = np.round(np.reshape(self.greyscale_function_of_energy(corrected_energy_array/self.f_x_y, parameters).T, self.exp_screen_res +(1,))).astype(np.uint8)
+    corrected_greyscale_array = np.round(np.reshape(self.greyscale_function_of_power(corrected_power_array/self.f_x_y, parameters).T, self.exp_screen_res +(1,))).astype(np.uint8)
     corrected_rgb_array = np.repeat(corrected_greyscale_array, 3, axis=2)
     corrected_image = Image.fromarray(corrected_rgb_array, "RGB")
     corrected_image.show()
@@ -654,33 +655,33 @@ class LightIntensityDetermination:
     padded_rescaled_image.paste(scaled_image, offset)
     padded_rescaled_image.show()
 
-    return np.asarray(padded_rescaled_image)
+    return np.asarray(padded_rescaled_image, dtype=np.uint8)
 
 
 # Time per measurement approximately 62.53 ms
 if __name__ == "__main__":
   # screen = DebugScreen(greyscale=0, current_mA=100)
 
-  # screen = GreyScaleEnergyExperiment()
-  # screen.plot_and_fit_greyscale_energy()
+  # screen = GreyScalePowerExperiment()
+  # screen.plot_and_fit_greyscale_power()
 
-  # experiment = PixelEnergyExperiment(image_path="C:\\Users\\whw29\\Desktop\\test.png", file_name="pixel_energy_test.txt", kernel_dim=(60, 60))
-  # experiment.pixel_energy_experiment_thread.start()
+  # experiment = PixelPowerExperiment(image_path="C:\\Users\\whw29\\Desktop\\test.png", file_name="pixel_power_test.txt", kernel_dim=(60, 60))
+  # experiment.pixel_power_experiment_thread.start()
   # experiment.mainloop()
-  # experiment.plot_pixel_energy_fraction()
+  # experiment.plot_pixel_power_fraction()
   # experiment.interpolate_data()
 
   # screen = LightIntensityDetermination()
 
-  # experiment = PixelEnergyExperiment(image_path="C:\\Users\\whw29\\Desktop\\test.png", file_name="pixel_energy_test.txt")
-  # experiment.pixel_energy_experiment_thread.start()
+  # experiment = PixelPowerExperiment(image_path="C:\\Users\\whw29\\Desktop\\test.png", file_name="pixel_power_test.txt")
+  # experiment.pixel_power_experiment_thread.start()
   # experiment.mainloop()
-  # experiment.plot_pixel_energy_fraction()
+  # experiment.plot_pixel_power_fraction()
   # screen = LightIntensityDetermination(image_path="C:\\Users\\whw29\\Desktop\\test.png", do_plot=True, use_stored_data=True)
-  experiment = PixelEnergyExperiment(image_path="C:\\Users\\whw29\\Desktop\\test_corrected.png", file_name="pixel_energy_test.txt")
-  experiment.pixel_energy_experiment_thread.start()
+  experiment = PixelPowerExperiment(image_path="C:\\Users\\whw29\\Desktop\\test_corrected.png", file_name="pixel_power_test.txt")
+  experiment.pixel_power_experiment_thread.start()
   experiment.mainloop()
-  experiment.plot_pixel_energy_fraction()
+  experiment.plot_pixel_power_fraction()
 
 
 
