@@ -5,6 +5,7 @@ from PIL import Image, ImageTk
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import RegularGridInterpolator
+from scipy.optimize import curve_fit
 
 import tkinter as tk
 import customtkinter
@@ -431,19 +432,29 @@ class GreyScaleEnergyExperiment(ExperimentGUI):
     
     parameters = np.polyfit(greyscale, energy_proportion, order)
     energy_function_of_greyscale = np.poly1d(parameters)
+    def greyscale_function_of_energy(energy_proportion, parameters):
+      a, b, c = parameters
+      greyscale = (-b + np.sqrt(b**2 - 4*a*(c - energy_proportion)))/a/2
+      greyscale[greyscale > 255] = 255
+      greyscale[np.isnan(greyscale)] = 0
+      return greyscale
 
-    parameters = np.polyfit(energy_proportion, greyscale, order)
-    greyscale_function_of_energy = np.poly1d(parameters)
+    # parameters, cov = curve_fit(greyscale_function_of_energy, energy_proportion, greyscale)
 
     if self.do_plot:
-      plt.plot(greyscale, energy_proportion, 'rx', greyscale, energy_function_of_greyscale(greyscale))
-      plt.xlim((greyscale[0], greyscale[-1]))
-      plt.ylim(bottom=np.min(energy_proportion))
-      plt.xlabel("Greyscale")
-      plt.ylabel("G")
+      # plt.plot(greyscale, energy_proportion, 'rx', greyscale, energy_function_of_greyscale(greyscale))
+      # plt.xlim((greyscale[0], greyscale[-1]))
+      # plt.ylim(bottom=np.min(energy_proportion))
+      # plt.xlabel("Greyscale")
+      # plt.ylabel("G")
+      plt.plot(energy_proportion, greyscale, 'rx', energy_proportion, greyscale_function_of_energy(energy_proportion, parameters))
+      plt.xlim((energy_proportion[0], energy_proportion[-1]))
+      plt.ylim(bottom=np.min(greyscale))
+      plt.xlabel("G")
+      plt.ylabel("Greyscale")
       plt.show()
 
-    return energy_function_of_greyscale, greyscale_function_of_energy
+    return energy_function_of_greyscale, greyscale_function_of_energy, parameters
 
 class PixelEnergyExperiment(ExperimentGUI):
   '''
@@ -573,7 +584,7 @@ class LightIntensityDetermination:
     else:
       experiment1.end_experiment()
 
-    self.energy_function_of_greyscale, self.greyscale_function_of_energy = experiment1.plot_and_fit_greyscale_energy()
+    self.energy_function_of_greyscale, self.greyscale_function_of_energy, parameters = experiment1.plot_and_fit_greyscale_energy()
 
     # Obtain f(x, y): 
     experiment2 = PixelEnergyExperiment(kernel_dim=kernel_dim, do_plot=do_plot)
@@ -596,14 +607,19 @@ class LightIntensityDetermination:
     # Determines what the image would look like without any correction
     energy_array = self.energy_function_of_greyscale(image_array) * self.f_x_y
     background_energy_array = self.energy_function_of_greyscale(0) * self.f_x_y
-    min_energy_max = np.min(self.f_x_y[:,120:-1])
-    min_background_energy = np.min(background_energy_array[:,120:-1])
+    min_energy_max = np.min(self.f_x_y[:,120:-60])
+    min_background_energy = np.min(background_energy_array[:,120:-60])
+
+    print(np.max(self.f_x_y))
+    print(np.max(background_energy_array))
+    print(min_energy_max)
+    print(min_background_energy)
 
     # Apply rescaling
-    corrected_energy_array = (energy_array - background_energy_array) / (self.f_x_y - background_energy_array) * (min_energy_max - min_background_energy)
+    corrected_energy_array = (energy_array - background_energy_array) / (self.f_x_y - background_energy_array) * (min_energy_max - min_background_energy) + min_background_energy
 
     # Round then convert to uint8 to prevent overflow errors when converting into RGB image
-    corrected_greyscale_array = np.round(np.reshape(self.greyscale_function_of_energy(corrected_energy_array/self.f_x_y), self.exp_screen_res[::-1] +(1,))).astype(np.uint8)
+    corrected_greyscale_array = np.round(np.reshape(self.greyscale_function_of_energy(corrected_energy_array/self.f_x_y, parameters), self.exp_screen_res[::-1] +(1,))).astype(np.uint8)
     corrected_rgb_array = np.repeat(corrected_greyscale_array, 3, axis=2)
     corrected_image = Image.fromarray(corrected_rgb_array, "RGB")
     corrected_image.show()
@@ -647,8 +663,6 @@ if __name__ == "__main__":
   # screen = DebugScreen(greyscale=0, current_mA=100)
 
   # screen = GreyScaleEnergyExperiment()
-  # screen.greyscale_energy_experiment_thread.start()
-  # screen.mainloop()
   # screen.plot_and_fit_greyscale_energy()
 
   # experiment = PixelEnergyExperiment(image_path="C:\\Users\\whw29\\Desktop\\test.png", file_name="pixel_energy_test.txt", kernel_dim=(60, 60))
@@ -663,7 +677,7 @@ if __name__ == "__main__":
   # experiment.pixel_energy_experiment_thread.start()
   # experiment.mainloop()
   # experiment.plot_pixel_energy_fraction()
-  # screen = LightIntensityDetermination(image_path="C:\\Users\\whw29\\Desktop\\test.png", do_plot=True, use_stored_data=False)
+  # screen = LightIntensityDetermination(image_path="C:\\Users\\whw29\\Desktop\\test.png", do_plot=True, use_stored_data=True)
   experiment = PixelEnergyExperiment(image_path="C:\\Users\\whw29\\Desktop\\test_corrected.png", file_name="pixel_energy_test.txt")
   experiment.pixel_energy_experiment_thread.start()
   experiment.mainloop()
