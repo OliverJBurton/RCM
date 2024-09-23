@@ -1,13 +1,14 @@
+import sys
+sys.path.append("C:\\Users\\whw29\\Desktop\\RCM\\RCM")
+
 from OpticalPowerMeter import PM16_120
 from light import DC2200
 
-from threading import Thread, Event
+from threading import Event
 from queue import Empty, Queue
 import tkinter as tk
-import customtkinter
 import numpy as np
-import matplotlib.pyplot as plt
-import time
+
 
 class _CallData:
   '''

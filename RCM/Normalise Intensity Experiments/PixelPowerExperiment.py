@@ -1,6 +1,11 @@
 import ExperimentGUI
-
-class PixelPowerExperiment(ExperimentGUI):
+from scipy.interpolate import RegularGridInterpolator
+from threading import Thread
+import numpy as np
+import matplotlib.pyplot as plt
+import time
+from PIL import Image, ImageTk
+class PixelPowerExperiment(ExperimentGUI.ExperimentGUI):
   '''
   Determines how much light power each pixel contributes to the sample
 
@@ -86,8 +91,8 @@ class PixelPowerExperiment(ExperimentGUI):
     interp = RegularGridInterpolator([x, y], data)
 
     # Create Matrix with size equal to resolution of projector screen
-    xx = np.linspace(0, M-1, self.exp_screen_res[0])
-    yy = np.linspace(0, N-1, self.exp_screen_res[1])
+    xx = np.linspace(0, M-1, self.exp_screen_res[1])
+    yy = np.linspace(0, N-1, self.exp_screen_res[0])
     X, Y = np.meshgrid(xx, yy, indexing="ij")
 
     # Interpolated array of f_x_y for all pixels on the projector screen
@@ -99,3 +104,10 @@ class PixelPowerExperiment(ExperimentGUI):
       plt.show()
 
     return Z
+
+if __name__ == "__main__":
+  experiment = PixelPowerExperiment(image_path="C:\\Users\\whw29\\Desktop\\test.png", file_name="pixel_power_test.txt", kernel_dim=(60, 60))
+  experiment.pixel_power_experiment_thread.start()
+  experiment.mainloop()
+  experiment.plot_pixel_power_fraction()
+  experiment.interpolate_data()
