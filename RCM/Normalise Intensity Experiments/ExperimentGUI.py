@@ -78,9 +78,9 @@ class ExperimentGUI(tk.Tk):
         self.background_power = float(lines[0])
         for line in lines[1:]:
           data.append(line.split(","))
-      return np.array(data, dtype=np.float32) - self.background_power
+      return np.array(data, dtype=np.float32)
     elif readings != []:
-      return np.array(readings, dtype=np.float32) - self.background_power
+      return np.array(readings, dtype=np.float32)
     else:
       print("No data available to plot!")
       return None

@@ -4,7 +4,7 @@ from threading import Thread
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm
-from matplotlibl.ticker import LinearLocator
+from matplotlib.ticker import LinearLocator
 import time
 from PIL import Image, ImageTk
 class PixelPowerExperiment(ExperimentGUI.ExperimentGUI):
@@ -80,13 +80,14 @@ class PixelPowerExperiment(ExperimentGUI.ExperimentGUI):
     '''
     Use data stored in file or variable self.power_readings to plot. Each point is a fraction of the total light power.
     '''
-    data = super()._get_file_data(readings=self.power_readings).reshape((self.exp_screen_res[1]//self.kernel_dim[1], self.exp_screen_res[0]//self.kernel_dim[0]))
+    data = super()._get_file_data(readings=self.power_readings).reshape((self.exp_screen_res[1]//self.kernel_dim[1], self.exp_screen_res[0]//self.kernel_dim[0])) - self.background_power
 
-    # Create Interpolator
+    # Create Interpolator, adding 0.5 as readings should represent power at the center of the kernel not the corners
     M, N = data.shape
+    print(M, N)
     x = np.arange(M)+0.5
     y = np.arange(N)+0.5
-    X, Y = np.meshgrid(x, y)
+    X, Y = np.meshgrid(x, y, indexing="ij")
     interp = RegularGridInterpolator([x, y], data, bounds_error=False, fill_value=None)
 
     # Generate values for whole screen
@@ -101,13 +102,22 @@ class PixelPowerExperiment(ExperimentGUI.ExperimentGUI):
       fig, ax = plt.subplots(2, 2)
     
       # Contour plots of original and interpolated data
-      ax[0,0].contourf(data, levels=30, cmap="RdGy")
-      ax[0,1].contourf(Z, levels=30, cmap="RdGy")
-    
-      ax[1,0].plot_surface(X, Y, data, cmap=cm.coolwarm, linewidth=0, antialiased=False)
-      ax[1,1].plot_surface(XX, YY, Z, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+      plot = ax[0,0].contourf(X, Y, data, levels=30, cmap="RdGy")
+      fig.colorbar(plot, ax=ax[0, 0])
+      plot = ax[0,1].contourf(XX, YY, Z, levels=30, cmap="RdGy")
+      fig.colorbar(plot, ax=ax[0, 1])
 
-      fig.colorbar()
+      ax = fig.add_subplot(2, 2, 3, projection="3d")
+      plot = ax.plot_surface(X, Y, data, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+      fig.colorbar(plot, ax=ax)
+      ax = fig.add_subplot(2, 2, 4, projection="3d")
+      plot = ax.plot_surface(XX, YY, Z, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+      fig.colorbar(plot, ax=ax)
+
+      plt.show()
+
+    return Z
+
 
 if __name__ == "__main__":
   experiment = PixelPowerExperiment(image_path="C:\\Users\\whw29\\Desktop\\test.png", file_name="pixel_power_test.txt", kernel_dim=(60, 60))

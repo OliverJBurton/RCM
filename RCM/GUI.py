@@ -219,29 +219,7 @@ class ImageDisplayGUI(tk.Tk):
 
 # Time per measurement approximately 62.53 ms
 if __name__ == "__main__":
-  # screen = DebugScreen(greyscale=0, current_mA=100)
-
-  # screen = GreyScalePowerExperiment()
-  # screen.plot_and_fit_greyscale_power()
-
-  # experiment = PixelPowerExperiment(image_path="C:\\Users\\whw29\\Desktop\\test.png", file_name="pixel_power_test.txt", kernel_dim=(60, 60))
-  # experiment.pixel_power_experiment_thread.start()
-  # experiment.mainloop()
-  # experiment.plot_pixel_power_fraction()
-  # experiment.interpolate_data()
-
-  # screen = LightIntensityDetermination()
-
-  # experiment = PixelPowerExperiment(image_path="C:\\Users\\whw29\\Desktop\\test.png", file_name="pixel_power_test.txt")
-  # experiment.pixel_power_experiment_thread.start()
-  # experiment.mainloop()
-  # experiment.plot_pixel_power_fraction()
-  # screen = LightIntensityDetermination(image_path="C:\\Users\\whw29\\Desktop\\test.png", do_plot=True, use_stored_data=True)
-  experiment = PixelPowerExperiment(image_path="C:\\Users\\whw29\\Desktop\\test_corrected.png", file_name="pixel_power_test.txt")
-  experiment.pixel_power_experiment_thread.start()
-  experiment.mainloop()
-  experiment.plot_pixel_power_fraction()
-
+  pass
 
 
 

@@ -39,8 +39,6 @@ class GreyScalePowerExperiment(ExperimentGUI.ExperimentGUI):
     # Full screen and wait until full screen process is finished
     self.make_call(self.activate_full_screen)
     time.sleep(1)
-    self.background_power = float(self.power_meter.get_power_reading_W_str())
-    print(f"The background power is: {self.background_power} W")
 
     # Loops through the greyscale range starting from white
     for i in range(0, 256, 1):
@@ -51,7 +49,7 @@ class GreyScalePowerExperiment(ExperimentGUI.ExperimentGUI):
 
     # Write to file
     with open(self.file_name, "w") as file:
-      file.write(f"{self.background_power}\n")
+      file.write(f"{self.greyscale_power_readings[0][1]}\n")
       for reading in self.greyscale_power_readings:
         file.write(f"{reading[0]},{reading[1]}\n")
 
@@ -59,7 +57,7 @@ class GreyScalePowerExperiment(ExperimentGUI.ExperimentGUI):
     print("End Experiment")
     self.make_call(self.destroy)
 
-  def plot_and_fit_greyscale_power(self, order=2):
+  def plot_and_fit_greyscale_power(self):
     '''
     Plots and fits a polynomial to the light power against the greyscale. Data taken from textfile or from self.greyscale_power_readings
 
@@ -68,7 +66,10 @@ class GreyScalePowerExperiment(ExperimentGUI.ExperimentGUI):
     '''
     data = super()._get_file_data(readings=self.greyscale_power_readings)
 
-    greyscale, power_proportion = data[:, 0], data[:, 1] / np.max(data[:, 1])
+    greyscale, power_proportion = data[:, 0], (data[:, 1] - self.background_power) / np.max(data[:, 1])
+    for i, element in enumerate(power_proportion):
+      if power_proportion[i] < 0 and element != power_proportion[-1]:
+        power_proportion[i] = (power_proportion[i-1] + power_proportion[i+1]) / 2
 
     scaled_data = np.stack((greyscale, power_proportion), axis=1)
     greyscale_power_table = dict(scaled_data)
