@@ -52,7 +52,8 @@ class PixelPowerExperiment(ExperimentGUI):
     time.sleep(1)
 
     # Loop through the all possible locations of the pixel block
-    print(f"The background power is: {self.power_meter.get_power_reading_W_str()} W")
+    self.background_power = float(self.power_meter.get_power_reading_W_str())
+    print(f"The background power is: {self.background_power} W")
 
     for i in range(len(self.rectangles_list)):
       self.make_call(self.move_hole, i)
@@ -60,6 +61,7 @@ class PixelPowerExperiment(ExperimentGUI):
 
     # Write to file
     with open(self.file_name, "w") as file:
+      file.write(f"{self.background_power}\n")
       for reading in self.power_readings:
         file.write(f"{reading}\n")
 
@@ -78,7 +80,7 @@ class PixelPowerExperiment(ExperimentGUI):
     plt.show()
 
   def interpolate_data(self):
-    data = super()._get_file_data(readings=self.power_readings).reshape((self.exp_screen_res[1]//self.kernel_dim[1], self.exp_screen_res[0]//self.kernel_dim[0]))
+    data = super()._get_file_data(readings=self.power_readings).reshape((self.exp_screen_res[1]//self.kernel_dim[1], self.exp_screen_res[0]//self.kernel_dim[0])) / self.kernel_dim[0] / self.kernel_dim[1]
 
     M, N = data.shape
     x = np.arange(M)

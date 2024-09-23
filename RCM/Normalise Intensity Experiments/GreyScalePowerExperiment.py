@@ -35,7 +35,8 @@ class GreyScalePowerExperiment(ExperimentGUI):
     # Full screen and wait until full screen process is finished
     self.make_call(self.activate_full_screen)
     time.sleep(1)
-    print(f"The background power is: {self.power_meter.get_power_reading_W_str()} W")
+    self.background_power = float(self.power_meter.get_power_reading_W_str())
+    print(f"The background power is: {self.background_power} W")
 
     # Loops through the greyscale range starting from white
     for i in range(0, 255, 1):
@@ -46,6 +47,7 @@ class GreyScalePowerExperiment(ExperimentGUI):
 
     # Write to file
     with open(self.file_name, "w") as file:
+      file.write(f"{self.background_power}\n")
       for reading in self.greyscale_power_readings:
         file.write(f"{reading[0]},{reading[1]}\n")
 

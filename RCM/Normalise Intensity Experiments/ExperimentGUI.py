@@ -37,6 +37,7 @@ class ExperimentGUI(tk.Tk):
     self.refresh_rate_ms = refresh_rate_ms
     self.do_plot = do_plot
     self.file_name = file_name
+    self.background_power = 0
 
     self.title("Experiment")
     self.columnconfigure(0, weight=1)
@@ -73,11 +74,12 @@ class ExperimentGUI(tk.Tk):
       data = []
       with open(self.file_name, "r") as file:
         lines = file.readlines()
-        for line in lines:
+        self.background_power = float(lines[0])
+        for line in lines[1:]:
           data.append(line.split(","))
-      return np.array(data, dtype=np.float32)
+      return np.array(data, dtype=np.float32) - self.background_power
     elif readings != []:
-      return np.array(readings, dtype=np.float32)
+      return np.array(readings, dtype=np.float32) - self.background_power
     else:
       print("No data available to plot!")
       return None
