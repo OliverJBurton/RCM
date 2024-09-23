@@ -3,6 +3,8 @@ from scipy.interpolate import RegularGridInterpolator
 from threading import Thread
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib import cm
+from matplotlibl.ticker import LinearLocator
 import time
 from PIL import Image, ImageTk
 class PixelPowerExperiment(ExperimentGUI.ExperimentGUI):
@@ -74,38 +76,38 @@ class PixelPowerExperiment(ExperimentGUI.ExperimentGUI):
     print("End Experiment")
     self.make_call(self.destroy)
 
-  def plot_pixel_power_fraction(self):
+  def interpolate_data(self):
     '''
     Use data stored in file or variable self.power_readings to plot. Each point is a fraction of the total light power.
     '''
     data = super()._get_file_data(readings=self.power_readings).reshape((self.exp_screen_res[1]//self.kernel_dim[1], self.exp_screen_res[0]//self.kernel_dim[0]))
 
-    plt.contourf(data, levels=30, cmap="RdGy")
-    plt.colorbar()
-    plt.show()
-
-  def interpolate_data(self):
-    data = super()._get_file_data(readings=self.power_readings).reshape((self.exp_screen_res[1]//self.kernel_dim[1], self.exp_screen_res[0]//self.kernel_dim[0])) / self.kernel_dim[0] / self.kernel_dim[1]
-
+    # Create Interpolator
     M, N = data.shape
-    x = np.arange(M)
-    y = np.arange(N)
-    interp = RegularGridInterpolator([x, y], data)
+    x = np.arange(M)+0.5
+    y = np.arange(N)+0.5
+    X, Y = np.meshgrid(x, y)
+    interp = RegularGridInterpolator([x, y], data, bounds_error=False, fill_value=None)
 
-    # Create Matrix with size equal to resolution of projector screen
+    # Generate values for whole screen
     xx = np.linspace(0, M-1, self.exp_screen_res[1])
     yy = np.linspace(0, N-1, self.exp_screen_res[0])
-    X, Y = np.meshgrid(xx, yy, indexing="ij")
+    XX, YY = np.meshgrid(xx, yy, indexing="ij")
 
     # Interpolated array of f_x_y for all pixels on the projector screen
-    Z = interp((X, Y))
-    
-    if self.do_plot:
-      plt.contourf(Z, levels=30, cmap="RdGy")
-      plt.colorbar()
-      plt.show()
+    Z = interp((XX, YY))
 
-    return Z
+    if self.do_plot:
+      fig, ax = plt.subplots(2, 2)
+    
+      # Contour plots of original and interpolated data
+      ax[0,0].contourf(data, levels=30, cmap="RdGy")
+      ax[0,1].contourf(Z, levels=30, cmap="RdGy")
+    
+      ax[1,0].plot_surface(X, Y, data, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+      ax[1,1].plot_surface(XX, YY, Z, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+
+      fig.colorbar()
 
 if __name__ == "__main__":
   experiment = PixelPowerExperiment(image_path="C:\\Users\\whw29\\Desktop\\test.png", file_name="pixel_power_test.txt", kernel_dim=(60, 60))
