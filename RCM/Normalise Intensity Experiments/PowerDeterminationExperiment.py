@@ -1,6 +1,9 @@
-import ExperimentGUI
 from PixelPowerExperiment import PixelPowerExperiment
 from GreyScalePowerExperiment import GreyScalePowerExperiment
+import numpy as np
+import matplotlib.pyplot as plt
+from PIL import Image
+from DebugScreen import DebugScreen
 
 class LightIntensityDetermination:
   """
@@ -46,22 +49,29 @@ class LightIntensityDetermination:
     # Open image in greyscale mode, scale it to resolution of projector screen
     # Possible error could arise if image as a transparency channel
     # image_array = np.asarray(Image.open(image_path).convert("L"), dtype=np.uint8)
-    np.set_printoptions(threshold=np.inf)
-    greyscale_array = self.open_scale_image(image_path).T
-
-    plt.imshow(greyscale_array)
-    plt.show()
+    # np.set_printoptions(threshold=np.inf)
+    greyscale_array = self.open_scale_image(image_path)
 
     # Get range of powers, scale power to be within range
-    max_power, min_power = np.min(self.f_x_y[:,120:-60]), np.min(self.greyscale_power_table[0]*self.f_x_y)
-    power_array = np.vectorize(self.greyscale_power_table.get)(greyscale_array)*self.f_x_y # Distribution of non-corrected intensity array
-    scaled_power_array = power_array / np.max(power_array) * (max_power - min_power) + min_power # Scale intensity array to be between the range
-    G_array = scaled_power_array / self.f_x_y
-    corrected_greyscale_array = self.power_greyscale_table(sorted_data, G_array)
+    max_min_power = np.min(self.f_x_y[:,120:-60])
+    print(max_min_power)
+    print(self.greyscale_power_table)
+    power_array = np.vectorize(self.greyscale_power_table.get)(greyscale_array) * max_min_power
+    plt.contourf(power_array, levels=30, cmap="RdGy")
+    plt.colorbar()
+    plt.show()
+    scaled_power_array = power_array / (self.f_x_y)
+    print(np.max(power_array))
+    plt.contourf(scaled_power_array, levels=30, cmap="RdGy")
+    plt.colorbar()
+    plt.show()
+    corrected_greyscale_array = self.power_greyscale_table(sorted_data, scaled_power_array)
+    plt.contourf(corrected_greyscale_array, levels=200, cmap="RdGy")
+    plt.colorbar()
+    plt.show()
 
-  
-    corrected_rgb_array = np.repeat(corrected_greyscale_array.reshape(self.exp_screen_res + (1,)), 3, axis=2)
-    corrected_image = Image.fromarray(corrected_rgb_array, "RGB")
+    corrected_rgb_array = np.repeat(corrected_greyscale_array.reshape(self.exp_screen_res[::-1] + (1,)), 3, axis=2)
+    corrected_image = Image.fromarray(corrected_rgb_array.astype(np.uint8), "RGB")
     corrected_image.show()
     corrected_image_path = f"{image_path.split(".")[0]}_corrected.{image_path.split(".")[1]}"
     corrected_image.save(corrected_image_path)
@@ -95,12 +105,12 @@ class LightIntensityDetermination:
     padded_rescaled_image.paste(scaled_image, offset)
     padded_rescaled_image.show()
 
-    return np.asarray(padded_rescaled_image, dtype=np.uint8)
+    return np.asarray(padded_rescaled_image)
 
 
 if __name__ == "__main__":
   # screen = DebugScreen(greyscale=0, current_mA=100)
-
+  #
   # screen = GreyScalePowerExperiment()
   # screen.plot_and_fit_greyscale_power()
 
@@ -112,12 +122,13 @@ if __name__ == "__main__":
 
   # screen = LightIntensityDetermination()
 
-  # experiment = PixelPowerExperiment(image_path="C:\\Users\\whw29\\Desktop\\test.png", file_name="pixel_power_test.txt")
+  # experiment = PixelPowerExperiment(file_name="pixel_power_test.txt")
   # experiment.pixel_power_experiment_thread.start()
   # experiment.mainloop()
   # experiment.plot_pixel_power_fraction()
-  # screen = LightIntensityDetermination(image_path="C:\\Users\\whw29\\Desktop\\test.png", do_plot=True, use_stored_data=True)
-  experiment = PixelPowerExperiment(image_path="C:\\Users\\whw29\\Desktop\\test_corrected.png", file_name="pixel_power_test.txt")
-  experiment.pixel_power_experiment_thread.start()
-  experiment.mainloop()
-  experiment.plot_pixel_power_fraction()
+  # experiment.interpolate_data()
+  screen = LightIntensityDetermination(image_path="C:\\Users\\whw29\\Desktop\\test.png", do_plot=True, use_stored_data=True)
+  # experiment = PixelPowerExperiment(image_path="C:\\Users\\whw29\\Desktop\\test_corrected.png", file_name="pixel_power_test.txt")
+  # experiment.pixel_power_experiment_thread.start()
+  # experiment.mainloop()
+  # experiment.plot_pixel_power_fraction()

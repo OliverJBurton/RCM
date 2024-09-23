@@ -1,8 +1,7 @@
-from PIL import Image, ImageTk
-from math import fabs
+from PIL import Image
+import customtkinter
+import tkinter as tk
 
-from scipy.interpolate import RegularGridInterpolator
-from scipy.optimize import curve_fit
 
 
 """

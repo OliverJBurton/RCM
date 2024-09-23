@@ -1,6 +1,10 @@
 import ExperimentGUI
+from threading import Thread
+import numpy as np
+import matplotlib.pyplot as plt
+import time
 
-class GreyScalePowerExperiment(ExperimentGUI):
+class GreyScalePowerExperiment(ExperimentGUI.ExperimentGUI):
   '''
   Determine the relationship between power of light on the sample with respect to the greyscale of the image taken by the camera
 
@@ -39,7 +43,7 @@ class GreyScalePowerExperiment(ExperimentGUI):
     print(f"The background power is: {self.background_power} W")
 
     # Loops through the greyscale range starting from white
-    for i in range(0, 255, 1):
+    for i in range(0, 256, 1):
       # Request main thread to update the greyscale
       self.make_call(self.set_greyscale, i)
       # Take readings
@@ -63,20 +67,24 @@ class GreyScalePowerExperiment(ExperimentGUI):
     :param order: order of the polynomial fitted
     '''
     data = super()._get_file_data(readings=self.greyscale_power_readings)
-    
-    greyscale_power_table = dict(data)
-    sorted_data = data[data[:,1].argsort()]
+
+    greyscale, power_proportion = data[:, 0], data[:, 1] / np.max(data[:, 1])
+
+    scaled_data = np.stack((greyscale, power_proportion), axis=1)
+    greyscale_power_table = dict(scaled_data)
+
+    sorted_data = scaled_data[scaled_data[:,1].argsort()]
     
     def power_greyscale_table(sorted_data, value):
       """
       Bisection function
       """
       idx = np.searchsorted(sorted_data[:,1], value, side="left")
-      idx = np.where(idx > 0 and (idx == len(sorted_data) or fabs(value - sorted_data[idx-1,1]) < fabs(value - sorted_data[idx,1])), idx-1, idx)
+      idx = np.where(np.logical_and(idx > 0, idx == len(sorted_data[:,1])), idx-1, idx)
+      idx = np.where(np.abs(value - sorted_data[idx-1,1]) < np.abs(value - sorted_data[idx,1]), idx-1, idx)
       return sorted_data[idx,0]
 
     if self.do_plot:
-      greyscale, power_proportion = data[:,0], data[:,1]/np.max(data[:,1])
       # Plot of greyscale (x-axis) vs G (y-axis)
       fig, ax = plt.subplots(2, 1)
       ax[0].plot(greyscale, power_proportion)
@@ -94,4 +102,8 @@ class GreyScalePowerExperiment(ExperimentGUI):
 
       plt.show()
 
-    return greyscale_power_table, np.vectorize(power_greyscale_table), sorted_data
+    return greyscale_power_table, power_greyscale_table, sorted_data
+
+if __name__ == "__main__":
+  screen = GreyScalePowerExperiment()
+  screen.plot_and_fit_greyscale_power()
