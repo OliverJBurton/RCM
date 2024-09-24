@@ -80,23 +80,23 @@ class PixelPowerExperiment(ExperimentGUI.ExperimentGUI):
     '''
     Use data stored in file or variable self.power_readings to plot. Each point is a fraction of the total light power.
     '''
-    data = super()._get_file_data(readings=self.power_readings).reshape((self.exp_screen_res[1]//self.kernel_dim[1], self.exp_screen_res[0]//self.kernel_dim[0])) - self.background_power
-
+    data = (super()._get_file_data(readings=self.power_readings).reshape((self.exp_screen_res[1]//self.kernel_dim[1], self.exp_screen_res[0]//self.kernel_dim[0])) - self.background_power)
     # Create Interpolator, adding 0.5 as readings should represent power at the center of the kernel not the corners
-    M, N = data.shape
-    print(M, N)
-    x = np.arange(M)+0.5
-    y = np.arange(N)+0.5
+
+    row, column = data.shape
+    x = np.arange(row)+0.5
+    y = np.arange(column)+0.5
     X, Y = np.meshgrid(x, y, indexing="ij")
-    interp = RegularGridInterpolator([x, y], data, bounds_error=False, fill_value=None)
+    interp = RegularGridInterpolator([x, y], data, bounds_error=False, fill_value=None, method="linear")
 
     # Generate values for whole screen
-    xx = np.linspace(0, M-1, self.exp_screen_res[1])
-    yy = np.linspace(0, N-1, self.exp_screen_res[0])
+    xx = np.linspace(0, row, self.exp_screen_res[1], endpoint=False)
+    yy = np.linspace(0, column, self.exp_screen_res[0], endpoint=False)
     XX, YY = np.meshgrid(xx, yy, indexing="ij")
 
     # Interpolated array of f_x_y for all pixels on the projector screen
     Z = interp((XX, YY))
+
 
     if self.do_plot:
       fig, ax = plt.subplots(2, 2)
@@ -120,8 +120,7 @@ class PixelPowerExperiment(ExperimentGUI.ExperimentGUI):
 
 
 if __name__ == "__main__":
-  experiment = PixelPowerExperiment(image_path="C:\\Users\\whw29\\Desktop\\test.png", file_name="pixel_power_test.txt", kernel_dim=(60, 60))
-  experiment.pixel_power_experiment_thread.start()
-  experiment.mainloop()
-  experiment.plot_pixel_power_fraction()
+  experiment = PixelPowerExperiment(image_path="C:\\Users\\whw29\\Desktop\\test2.png", file_name="pixel_power_test.txt", kernel_dim=(60, 60))
+  # experiment.pixel_power_experiment_thread.start()
+  # experiment.mainloop()
   experiment.interpolate_data()

@@ -1,16 +1,12 @@
 import numpy as np
-import matplotlib.pyplot as plt
-from multiprocessing import Pool
 
 from camera import Camera_HS #Spectral
 from camera import Camera_BA #RGB
 from light import DC2200
 from stage import Controller
 from tunablefilter import TunableFilter
-from GUI import ExperimentGUI, ImageDisplayGUI
 import time
 import os
-import cv2
 import imageio
 
 class FullControlMicroscope:
@@ -19,8 +15,6 @@ class FullControlMicroscope:
         self.no_spectra = no_spectra
         self.exposure_time = exposure_time
         self.save_folder = save_folder
-        self.intensity_loss_pixel_matrix = []
-        self.greyscale_intensity_list = []
         self.image_path_list = []
 
         # initialising all sections:
@@ -68,51 +62,6 @@ class FullControlMicroscope:
         self.sta.close()
         self.lcf.close()
 
-    def obtain_intensity_pixel_matrix(self, kernel_x=3, kernel_y=3):
-        '''
-        Convolves a kernel across the screen and measures the light intensity to determine the distribution of intensities
-        Sets the parameter intensity_loss_pixel_matrix
-
-        :param kernel_x: x dimension of kernel
-        :param yNum: y dimension of kernel
-        '''
-
-        # Add something to open and move inkscape to the 3rd screen or tell user to do it
-        # https://github.com/spakin/SimpInkScr/wiki/Modifying-existing-objects
-
-        experiment_screen = ExperimentGUI(kernel_x=kernel_x, kernel_y=kernel_y)
-        experiment_screen.pixel_intensity_experiment_thread.start()
-        experiment_screen.mainloop()
-        
-        self.intensity_loss_pixel_matrix = experiment_screen.intensity_readings
-
-    def greyscale_intensity_relationship(self, step=5):
-        '''
-        Determines the relationship between the greyscale of the image and light intensity
-        Sets the parameter greyscale_intensity_list and plots a graph of light intensity vs greyscale
-        :param steps: size of the interval between greyscale values
-        '''
-
-        # Return a fitted curve, need to check which equation to use first
-        # Could use np.poly1d(np.polyfit(x, y))
-
-        # Initialise window with white background
-        experiment_screen = ExperimentGUI(step=step)
-
-        # Prompts user to move GUI to projected screen, then begins experiment
-        experiment_screen.greyscale_intensity_experiment_thread.start()
-
-        experiment_screen.mainloop()
-
-        self.greyscale_intensity_list = experiment_screen.greyscale_intensity_readings
-        np.savetxt("greyscale_intensity_data.txt", self.greyscale_intensity_list)
-        
-        n_readings = np.array(experiment_screen.greyscale_intensity_readings)
-        plt.plot(n_readings[:,0], n_readings[:,1])
-        plt.xlabel("Greyscale")
-        plt.ylabel("Light intensity (W/m^2)")
-        plt.show()
-
     def save_image(self, wavelengths, hypercube, indices):
         '''
         Saves image in save_folder
@@ -121,13 +70,10 @@ class FullControlMicroscope:
         :param indices: list of identifiers to append to the name of each image
         '''
         for ii, wl in enumerate(wavelengths):
-            image_name = 'image_cap_' + str(ii) + '_' + str(wl) + '_' + '_'.join(str(e) for e in indices) + '_img.png'
+            image_name = 'image_cap_' + str(ii) + '_' + str(wl) + '_' + '_'.join(str(round(e)) for e in indices) + '_img.png'
             self.image_path_list.append(self.save_folder + "\\" + image_name)
             fn = os.path.join(self.save_folder, image_name)
             imageio.imwrite(fn, hypercube[ii].astype(np.uint16))
-
-    def display_images(self):
-        screen = ImageDisplayGUI(self.image_path_list)
 
     def aquire_HS_datacube(self):
         '''
@@ -140,7 +86,7 @@ class FullControlMicroscope:
         '''
 
         # Create list of wavelengths
-        wavelengths = np.linspace(self.wavelength_range[0], self.wavelength_range[1], self.no_spectra)
+        wavelengths = np.round(np.linspace(self.wavelength_range[0], self.wavelength_range[1], self.no_spectra))
         hypercube = []
 
         for wl in wavelengths:
@@ -160,7 +106,7 @@ class FullControlMicroscope:
         while time.time() - t0 < total_time:
             time.sleep(time_increment)
             wavelengths, hypercube = self.aquire_HS_datacube()
-            self.save_image(wavelengths, hypercube, [time.time() - t0])            
+            self.save_image(wavelengths, hypercube, [time.time() - t0])
 
     def mapping(self, channels=[1, 2], sample_dim=[], sample_no_per_channel=[]):
         '''

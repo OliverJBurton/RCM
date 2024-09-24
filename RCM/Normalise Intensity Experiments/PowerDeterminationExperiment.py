@@ -3,6 +3,7 @@ from GreyScalePowerExperiment import GreyScalePowerExperiment
 import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
+from time import sleep
 from DebugScreen import DebugScreen
 
 class LightIntensityDetermination:
@@ -53,22 +54,17 @@ class LightIntensityDetermination:
     greyscale_array = self.open_scale_image(image_path)
 
     # Get range of powers, scale power to be within range
-    max_min_power = np.min(self.f_x_y[:,120:-60])
+    max_min_power = np.min(self.f_x_y[:,240:-180])
     print(max_min_power)
-    print(self.greyscale_power_table)
-    power_array = np.vectorize(self.greyscale_power_table.get)(greyscale_array) * max_min_power
-    plt.contourf(power_array, levels=30, cmap="RdGy")
-    plt.colorbar()
-    plt.show()
-    scaled_G_array = power_array / (self.f_x_y)
+    G_array = np.vectorize(self.greyscale_power_table.get)(greyscale_array)
+    G_array[:,:120] = 0
+    scaled_G_array = G_array * (max_min_power / self.f_x_y)**1.05
+    scaled_G_array[np.isnan(scaled_G_array)] = 0
     print(np.max(scaled_G_array))
-    plt.contourf(scaled_G_array, levels=30, cmap="RdGy")
-    plt.colorbar()
-    plt.show()
     corrected_greyscale_array = self.power_greyscale_table(sorted_data, scaled_G_array)
-    plt.contourf(corrected_greyscale_array, levels=200, cmap="RdGy")
-    plt.colorbar()
-    plt.show()
+    # plt.contourf(corrected_greyscale_array, levels=200, cmap="RdGy")
+    # plt.colorbar()
+    # plt.show()
 
     corrected_rgb_array = np.repeat(corrected_greyscale_array.reshape(self.exp_screen_res[::-1] + (1,)), 3, axis=2)
     corrected_image = Image.fromarray(corrected_rgb_array.astype(np.uint8), "RGB")
@@ -116,19 +112,20 @@ if __name__ == "__main__":
   # screen.mainloop()
   # screen.plot_and_fit_greyscale_power()
 
-  # experiment = PixelPowerExperiment(image_path="C:\\Users\\whw29\\Desktop\\test.png", file_name="pixel_power_test.txt", kernel_dim=(60, 60))
+  # experiment = PixelPowerExperiment(image_path="C:\\Users\\whw29\\Desktop\\test2.png", file_name="pixel_power_test.txt", kernel_dim=(60, 60))
   # experiment.pixel_power_experiment_thread.start()
   # experiment.mainloop()
   # experiment.interpolate_data()
 
   # screen = LightIntensityDetermination()
 
-  experiment = PixelPowerExperiment(image_path="C:\\Users\\whw29\\Desktop\\test.png", file_name="pixel_power_test.txt")
-  experiment.pixel_power_experiment_thread.start()
-  experiment.mainloop()
-  experiment.interpolate_data()
-  screen = LightIntensityDetermination(image_path="C:\\Users\\whw29\\Desktop\\test.png", do_plot=True, use_stored_data=True)
-  experiment = PixelPowerExperiment(image_path="C:\\Users\\whw29\\Desktop\\test_corrected.png", file_name="pixel_power_test.txt")
+  # experiment = PixelPowerExperiment(image_path="C:\\Users\\whw29\\Desktop\\test.png", file_name="pixel_power_test.txt")
+  # experiment.pixel_power_experiment_thread.start()
+  # experiment.mainloop()
+  # experiment.interpolate_data()
+  # screen = LightIntensityDetermination(image_path="C:\\Users\\whw29\\Desktop\\silver_experiment.png", do_plot=False, use_stored_data=True)
+  # sleep(5)
+  experiment = PixelPowerExperiment(image_path="C:\\Users\\whw29\\Desktop\\silver_experiment.png", file_name="pixel_power_test.txt")
   experiment.pixel_power_experiment_thread.start()
   experiment.mainloop()
   experiment.interpolate_data()
