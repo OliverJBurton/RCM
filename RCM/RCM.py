@@ -15,7 +15,6 @@ class FullControlMicroscope:
         self.no_spectra = no_spectra
         self.exposure_time = exposure_time
         self.save_folder = save_folder
-        self.image_path_list = []
 
         # initialising all sections:
         self.chs = Camera_HS()
@@ -71,7 +70,6 @@ class FullControlMicroscope:
         '''
         for ii, wl in enumerate(wavelengths):
             image_name = 'image_cap_' + str(ii) + '_' + str(wl) + '_' + '_'.join(str(round(e)) for e in indices) + '_img.png'
-            self.image_path_list.append(self.save_folder + "\\" + image_name)
             fn = os.path.join(self.save_folder, image_name)
             imageio.imwrite(fn, hypercube[ii].astype(np.uint16))
 

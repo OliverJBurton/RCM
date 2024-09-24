@@ -1,7 +1,7 @@
 from PIL import Image
 import customtkinter
 import tkinter as tk
-
+import glob
 
 
 """
@@ -19,7 +19,7 @@ class _ImageGUI(tk.Toplevel):
   Pop-up window that displays an image in a larger size
   Can navigate through the gallery of images
   '''
-  def __init__(self, image_path, image_path_list):
+  def __init__(self, image_path, image_folder_path):
     super().__init__()
     self.title(image_path.split(".", 1)[0])
     # Set number of rows and columns
@@ -28,7 +28,9 @@ class _ImageGUI(tk.Toplevel):
     # If window is no longer at the top, destroy it
     self.bind("<FocusOut>", self.destroy_window)
 
-    self.image_path_list = image_path_list
+    self.image_path_list = []
+    for filename in glob.glob(f"{image_folder_path}/*.png"):
+      self.image_path_list.append(filename)
     self.current_index = self.image_path_list.index(image_path)
 
     # Open image
