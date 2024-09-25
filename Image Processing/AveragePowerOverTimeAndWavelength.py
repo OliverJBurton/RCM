@@ -9,17 +9,8 @@ from threading import Event, Thread
 """
 Assumes all images have the png extension
 Assumes image name follows this convention: 'image_cap_' + {index} + '_' + {wavelength} + '_' + {time} + '_img.png'
-
-Assumes GreyScalePowerExperiment and PixelPowerExperiment have been executed and there exists a file with the data inside
 """
 
-
-"""
-Main program takes images every 10 minutes
-Need a thread that checks the image folder every say 1 minute for new images
-Process each image, saves the data
-
-"""
 
 class AveragePowerOverTimeAndWavelength:
 
@@ -42,7 +33,7 @@ class AveragePowerOverTimeAndWavelength:
   def average_count_irt(self):
     # Check queue to see
     image_path_list = []
-    while not self.is_finished.is_set():
+    while True:
       # Wait 2 minutes
       time.sleep(self.thread_sleep_time)
 
@@ -57,6 +48,9 @@ class AveragePowerOverTimeAndWavelength:
           if filename not in image_path_list:
             image_path_list.append(filename)
             new_images_list.append(filename)
+        
+        if new_image_lists == [] and self.is_finished.is_set():
+          return
 
         # Sort images in ascending order of wavelength and time
         """See https://blog.codinghorror.com/sorting-for-humans-natural-sort-order/"""
