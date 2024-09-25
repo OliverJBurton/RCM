@@ -8,6 +8,10 @@ from tunablefilter import TunableFilter
 import time
 import os
 import imageio
+import sys
+
+sys.path.append("../Image Processing/")
+from AveragePowerOverTimeAndWavelength import AveragePowerOverTimeAndWavelength
 
 class FullControlMicroscope:
     def __init__(self, wavelength_range=[420, 730], no_spectra=5, exposure_time=0.0, save_folder="", check_stage=True):
@@ -27,6 +31,7 @@ class FullControlMicroscope:
         print('LC connecting...')
         self.lcf.open()
         print('LC connected')
+        self.image_processing = AveragePowerOverTimeAndWavelength()
 
         self.sta = Controller(which_port='COM4',
                               stages=('ZFM2030', 'ZFM2030', 'ZFM2030'),
@@ -100,11 +105,15 @@ class FullControlMicroscope:
         :param time_increment: time between measurements
         :param total_time: time for all data measurements
         '''
+        self.image_processing.average_count_thread.start()
         t0 = time.time()
         while time.time() - t0 < total_time:
             time.sleep(time_increment)
             wavelengths, hypercube = self.aquire_HS_datacube()
+            self.image_processing.taking_images.set()
             self.save_image(wavelengths, hypercube, [time.time() - t0])
+            self.image_processing.taking_images.clear()
+        self.image_processing.is_finished.set()
 
     def mapping(self, channels=[1, 2], sample_dim=[], sample_no_per_channel=[]):
         '''

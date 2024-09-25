@@ -1,6 +1,7 @@
 import sys
-sys.path.append("C:\\Users\\whw29\\Desktop\\RCM\\RCM")
+# sys.path.append("C:\\Users\\whw29\\Desktop\\RCM\\RCM\\")
 
+sys.path.append("../RCM/")
 from OpticalPowerMeter import PM16_120
 from light import DC2200
 
@@ -29,34 +30,35 @@ class ExperimentGUI(tk.Tk):
   :param do_overrideredirect: removes the taskbar and makes screen unresponsive, used to full-screen. 
   :param grid_layout: number of columns and rows of the screen. 1 is the minimum.
   '''
-  def __init__(self, file_name="", exp_screen_res=(1920, 1080), greyscale=255, current_mA=100, do_overrideredirect=True, refresh_rate_ms=3, do_plot=True):
+  def __init__(self, file_name="", exp_screen_res=(1920, 1080), greyscale=255, current_mA=100, do_overrideredirect=True, refresh_rate_ms=3, do_plot=True, use_stored_data=False):
     super().__init__()
 
-    self.geometry("+0+0")
     self.exp_screen_res = exp_screen_res
-    self.do_overrideredirect = do_overrideredirect
-    self.refresh_rate_ms = refresh_rate_ms
     self.do_plot = do_plot
     self.file_name = file_name
     self.background_power = 0
 
-    self.title("Experiment")
-    self.columnconfigure(0, weight=1)
-    self.rowconfigure(0, weight=1)
-    # Initialise canvas that will fill the whole window and expands if the window does
-    self.canvas = tk.Canvas(self, bg=f"#{greyscale:02X}{greyscale:02X}{greyscale:02X}",highlightthickness=0)
-    self.canvas.pack(fill="both", expand=True)
+    if not use_stored_data:
+      self.do_overrideredirect = do_overrideredirect
+      self.refresh_rate_ms = refresh_rate_ms
+      self.geometry("+0+0")
+      self.title("Experiment")
+      self.columnconfigure(0, weight=1)
+      self.rowconfigure(0, weight=1)
+      # Initialise canvas that will fill the whole window and expands if the window does
+      self.canvas = tk.Canvas(self, bg=f"#{greyscale:02X}{greyscale:02X}{greyscale:02X}",highlightthickness=0)
+      self.canvas.pack(fill="both", expand=True)
 
-    # Initialise power meter
-    self.power_meter = PM16_120()
+      # Initialise power meter
+      self.power_meter = PM16_120()
 
-    # Initialise light
-    self.LED = DC2200()
-    self.LED.set_current_mA(current_mA=current_mA)
-    self.LED.on()
+      # Initialise light
+      self.LED = DC2200()
+      self.LED.set_current_mA(current_mA=current_mA)
+      self.LED.on()
 
-    # Create event queue
-    self.request_queue = Queue()
+      # Create event queue
+      self.request_queue = Queue()
 
   ## Normal Functions
   def activate_full_screen(self):
@@ -89,7 +91,6 @@ class ExperimentGUI(tk.Tk):
     '''
     Destroys window
     '''
-    self.LED.close()
     self.destroy()
   
   ## Daemon Functions

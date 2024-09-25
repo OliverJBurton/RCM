@@ -7,6 +7,7 @@ from matplotlib import cm
 from matplotlib.ticker import LinearLocator
 import time
 from PIL import Image, ImageTk
+
 class PixelPowerExperiment(ExperimentGUI.ExperimentGUI):
   '''
   Determines how much light power each pixel contributes to the sample
@@ -15,30 +16,35 @@ class PixelPowerExperiment(ExperimentGUI.ExperimentGUI):
   :param scale: effectively reduces the resolution of the display by 8 in both dimension, reduces time for experiment to complete
 
   '''
-  def __init__(self, kernel_dim=(60, 60), file_name="pixel_power_readings.txt", image_path="", current_mA=100, do_plot=True):
-    super().__init__(file_name=file_name, current_mA=current_mA, do_plot=do_plot)
-
-    # Create image 
-    self.image_path = image_path
-    if self.image_path != "":
-      bg_img = ImageTk.PhotoImage(Image.open(self.image_path))
-      self.canvas.bg_img = bg_img
-      self.canvas.create_image((0, 0), image=self.canvas.bg_img, anchor="nw")
-    
-    # Set up grid of rectangles, gets background reading, then set first rectangle to be transparent
-    self.rectangles_list = []
-    for row in range(0, self.exp_screen_res[1], kernel_dim[1]):
-      for column in range(0, self.exp_screen_res[0], kernel_dim[0]):
-        self.rectangles_list.append(self.canvas.create_rectangle(column, row, column+kernel_dim[0], row+kernel_dim[1], fill="#000000", width=0))
+  def __init__(self, kernel_dim=(60, 60), file_name="pixel_power_readings.txt", image_path="", current_mA=100, do_plot=True, use_stored_data=False):
+    super().__init__(file_name=file_name, current_mA=current_mA, do_plot=do_plot, use_stored_data=use_stored_data)
 
     # Pixel power experiment parameters
     self.kernel_dim = kernel_dim
     self.power_readings = []
+    
+    if not use_stored_data:
+      # Create image 
+      self.image_path = image_path
+      if self.image_path != "":
+        bg_img = ImageTk.PhotoImage(Image.open(self.image_path))
+        self.canvas.bg_img = bg_img
+        self.canvas.create_image((0, 0), image=self.canvas.bg_img, anchor="nw")
+      
+      # Set up grid of rectangles, gets background reading, then set first rectangle to be transparent
+      self.rectangles_list = []
+      for row in range(0, self.exp_screen_res[1], kernel_dim[1]):
+        for column in range(0, self.exp_screen_res[0], kernel_dim[0]):
+          self.rectangles_list.append(self.canvas.create_rectangle(column, row, column+kernel_dim[0], row+kernel_dim[1], fill="#000000", width=0))
 
-    # Creates a daemon thread for the pixel power experiment to run in the background 
-    self.pixel_power_experiment_thread = Thread(target=self.pixel_power_experiment, daemon=True)
 
-    self.after(self.refresh_rate_ms, self.call_handler)
+      # Creates a daemon thread for the pixel power experiment to run in the background 
+      self.pixel_power_experiment_thread = Thread(target=self.pixel_power_experiment, daemon=True)
+
+      self.after(self.refresh_rate_ms, self.call_handler)
+
+    else:
+      self.end_experiment()
 
   def move_hole(self, i):
     '''
@@ -95,7 +101,8 @@ class PixelPowerExperiment(ExperimentGUI.ExperimentGUI):
     XX, YY = np.meshgrid(xx, yy, indexing="ij")
 
     # Interpolated array of f_x_y for all pixels on the projector screen
-    Z = interp((XX, YY))
+    # Image power should be extended over 
+    Z = interp((XX, YY)) / self.kernel_dim[0] / self.kernel_dim[1]
 
 
     if self.do_plot:
