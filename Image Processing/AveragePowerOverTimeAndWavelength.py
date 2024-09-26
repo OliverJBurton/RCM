@@ -51,6 +51,7 @@ class AveragePowerOverTimeAndWavelength:
             new_image_list.append(filename)
 
         if new_image_list == [] and self.is_finished.is_set():
+          self._save_data()
           return
 
         # Sort images in ascending order of wavelength and time
