@@ -26,38 +26,39 @@ class AveragePowerOverTimeAndWavelength:
     self.times = []
     self.wavelengths = []
     self.counts = []
-    self.normalised_counts = []
 
     self.average_count_thread = Thread(target=self.average_count_irt)
 
   def average_count_irt(self):
     # Check queue to see
     image_path_list = []
+    self._save_data()
+
     while True:
       # Wait 2 minutes
       time.sleep(self.thread_sleep_time)
 
       # Only perform data processing when images are not being taken
-      if not self.taking_images:
+      if not self.taking_images.is_set():
         
         self._retrieve_data()
-        average_count_dict = dict(zip(self.wavelengths, self.powers))
+        average_count_dict = dict(zip(self.wavelengths, self.counts))
 
         new_image_list = []
         for filename in glob.glob(f"{self.image_folder}/*.png"):
-          if filename not in image_path_list:
+          if not (filename in image_path_list):
             image_path_list.append(filename)
             new_image_list.append(filename)
-        
+
         if new_image_list == [] and self.is_finished.is_set():
           return
 
         # Sort images in ascending order of wavelength and time
         """See https://blog.codinghorror.com/sorting-for-humans-natural-sort-order/"""
         image_path_list = sorted(new_image_list, key=lambda string_ : [int(s) if s.isdigit() else s for s in re.split(r'(\d+)', string_)])
-        new_image_lists = sorted(new_image_list, key=lambda string_ : [int(s) if s.isdigit() else s for s in re.split(r'(\d+)', string_)])
+        new_image_list = sorted(new_image_list, key=lambda string_ : [int(s) if s.isdigit() else s for s in re.split(r'(\d+)', string_)])
 
-        self._process_data(new_image_lists, average_count_dict)
+        self._process_data(new_image_list, average_count_dict)
 
   def get_average_count(self):
     # Get all image file names
@@ -90,8 +91,7 @@ class AveragePowerOverTimeAndWavelength:
         average_count_dict[wavelength].append(np.average(image_array))
 
     self.wavelengths = list(average_count_dict.keys())
-    self.counts = np.array(list(average_count_dict.values()), np.float32)
-    self.normalised_counts = self.counts / self.counts[:,0][:,np.newaxis]
+    self.counts = list(average_count_dict.values())
     self._save_data()
 
   def _save_data(self):
@@ -112,25 +112,25 @@ class AveragePowerOverTimeAndWavelength:
   def _retrieve_data(self):
     with open(self.save_file, "r") as file:
       data = file.readlines()
-      self.times = np.array(data[0].split(",")[:-1], np.float32)
-      self.wavelengths = np.array(data[1].split(",")[:-1], np.float32)
+      self.times = [float(time) for time in data[0].split(",")[:-1]]
+      self.wavelengths = [float(wavelength) for wavelength in data[1].split(",")[:-1]]
       for count_list in data[2:]:
-        self.counts.append(count_list.split(",")[:-1])
-      
-      self.counts = np.array(self.counts, np.float32)
-      self.normalised_counts = self.counts / self.counts[:, 0][:, np.newaxis]
+        self.counts.append([float(count) for count in count_list.split(",")[:-1]])
 
   def plot_data(self):
     fig, ax = plt.subplots(2, 1)
 
+    n_counts = np.array(self.counts)
+    normalised_counts = n_counts / n_counts[:, 0][:, np.newaxis]
+
     # Plots power for each wavelength
-    ax[0].plot(self.wavelengths, self.normalised_counts, "rx")
+    ax[0].plot(self.wavelengths, normalised_counts, "rx")
     ax[0].set_xlabel("Wavelength (nm)")
     ax[0].set_ylabel("Average Count")
 
     # Plots power as it changes with time
     # Each row corresponds to each time, hence must transpose array
-    plots = ax[1].plot(np.array(self.times) / 60, self.normalised_counts.T)
+    plots = ax[1].plot(np.array(self.times) / 60, normalised_counts.T)
     ax[1].legend(iter(plots), self.wavelengths)
     ax[1].set_xlabel("Time (minute)")
     ax[1].set_ylabel("Average Count")

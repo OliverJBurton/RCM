@@ -10,7 +10,7 @@ import os
 import imageio
 import sys
 
-sys.path.append("../Image Processing/")
+sys.path.append("C:\\Users\\whw29\\Desktop\\RCM\\Image Processing")
 from AveragePowerOverTimeAndWavelength import AveragePowerOverTimeAndWavelength
 
 class FullControlMicroscope:
@@ -31,7 +31,7 @@ class FullControlMicroscope:
         print('LC connecting...')
         self.lcf.open()
         print('LC connected')
-        self.image_processing = AveragePowerOverTimeAndWavelength()
+        self.image_processing = AveragePowerOverTimeAndWavelength(image_folder=save_folder, thread_sleep_time=1)
 
         self.sta = Controller(which_port='COM4',
                               stages=('ZFM2030', 'ZFM2030', 'ZFM2030'),
