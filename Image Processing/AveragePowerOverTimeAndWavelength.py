@@ -45,18 +45,17 @@ class AveragePowerOverTimeAndWavelength:
         average_count_dict = dict(zip(self.wavelengths, self.counts))
 
         new_image_list = []
+        print(image_path_list)
         for filename in glob.glob(f"{self.image_folder}/*.png"):
           if not (filename in image_path_list):
             image_path_list.append(filename)
             new_image_list.append(filename)
 
         if new_image_list == [] and self.is_finished.is_set():
-          self._save_data()
           return
 
         # Sort images in ascending order of wavelength and time
         """See https://blog.codinghorror.com/sorting-for-humans-natural-sort-order/"""
-        image_path_list = sorted(new_image_list, key=lambda string_ : [int(s) if s.isdigit() else s for s in re.split(r'(\d+)', string_)])
         new_image_list = sorted(new_image_list, key=lambda string_ : [int(s) if s.isdigit() else s for s in re.split(r'(\d+)', string_)])
 
         self._process_data(new_image_list, average_count_dict)
@@ -121,7 +120,7 @@ class AveragePowerOverTimeAndWavelength:
   def plot_data(self):
     fig, ax = plt.subplots(2, 1)
 
-    n_counts = np.array(self.counts)
+    n_counts = np.array(self.counts, np.float32)
     normalised_counts = n_counts / n_counts[:, 0][:, np.newaxis]
 
     # Plots power for each wavelength
@@ -139,6 +138,6 @@ class AveragePowerOverTimeAndWavelength:
     plt.show()
 
 if __name__ == "__main__":
-  processing = AveragePowerOverTimeAndWavelength(image_folder="C:\\Users\\whw29\\Desktop\\Images3")
+  processing = AveragePowerOverTimeAndWavelength(image_folder="C:\\Users\\whw29\\Desktop\\Images3", save_file="C:\\Users\\whw29\\Desktop\\RCM\\average_power_over_wavelength_and_time.txt")
   processing._retrieve_data()
   processing.plot_data()

@@ -113,7 +113,6 @@ class FullControlMicroscope:
             self.image_processing.taking_images.set()
             self.save_image(wavelengths, hypercube, [time.time() - t0])
             self.image_processing.taking_images.clear()
-        print(self.image_processing.wavelength)
         self.image_processing.is_finished.set()
         self.image_processing.average_count_thread.join()
 
