@@ -5,6 +5,8 @@ import re
 import matplotlib.pyplot as plt
 from threading import Event, Thread
 import time
+from skimage.measyre import block_reduce
+from datetime import datetime
 
 """
 Assumes all images have the png extension
@@ -18,7 +20,7 @@ class AveragePowerOverTimeAndWavelength:
   allowed_wavelengths=[420.0, 436.0, 453.0, 469.0, 485.0, 502.0, 518.0, 534.0, 551.0, 567.0, 583.0, 599.0, 616.0, 632.0, 648.0, 665.0, 681.0, 697.0, 714.0, 730.0]):
     
     self.image_folder = image_folder
-    self.save_file = save_file
+    self.save_file = save_file.split(".")[0] + datetime.now().strftime("%d/%m/%y|%H:%M:%S") + "." + save_file.split(".")[1]
     self.allowed_wavelengths = allowed_wavelengths
     self.thread_sleep_time = thread_sleep_time
     self.is_finished = Event()
@@ -26,6 +28,7 @@ class AveragePowerOverTimeAndWavelength:
     self.times = []
     self.wavelengths = []
     self.counts = []
+    self.blocks = []
 
     self.average_count_thread = Thread(target=self.average_count_irt)
 
@@ -81,14 +84,23 @@ class AveragePowerOverTimeAndWavelength:
         self.times.append(float(filename.split("_")[4]))
       image_array = np.asarray(Image.open(filename))
 
+      block_list = np.empty(len(self.blocks))
+      for i, block in enumerate(self.blocks):
+        block_list[i] = image_array[block[0]:block[1], block[2]:block[3]]
+
+      block_shape = block_list.shape
+      # If block is not just a strip, flatten the block into a strip so you can take an average along each strip
+      if block_shape == 3:
+        block_list = block_list.reshape(block_shape[0], block_shape[1]*block_shape[2])
+
       # Check wavelength of file, if not seen before, add it to the dictionary
       # Creats dictionary of lists of averages of greyscale 
       wavelength = float(filename.split("_")[3])
 
       if wavelength not in average_count_dict.keys():
-        average_count_dict[wavelength] = [np.average(image_array)]
+        average_count_dict[wavelength] = [np.average(block_list, axis=1)]
       else:
-        average_count_dict[wavelength].append(np.average(image_array))
+        average_count_dict[wavelength].append(np.average(block_list, axis=1))
 
     self.wavelengths = list(average_count_dict.keys())
     self.counts = list(average_count_dict.values())
@@ -106,8 +118,19 @@ class AveragePowerOverTimeAndWavelength:
 
       for count_list in self.counts:
         for count in count_list:
-          file.write(f"{count},")
+          for block in count:
+            file.write(f"{block},")
+          file.write("|")
         file.write("\n")
+    
+      """
+      Storage structure:
+      line 1: times separated by commas
+      line 2: wavelengths separated by commas
+      line 3 onwards: every line is the data collected from each wavelength
+                      every chunk separated by '|' represents data collected at each time
+                      every element in each chunk is separated by "," represents data collected from a block
+      """
 
   def _retrieve_data(self):
     with open(self.save_file, "r") as file:
@@ -115,25 +138,25 @@ class AveragePowerOverTimeAndWavelength:
       self.times = [float(time) for time in data[0].split(",")[:-1]]
       self.wavelengths = [float(wavelength) for wavelength in data[1].split(",")[:-1]]
       for count_list in data[2:]:
-        self.counts.append([float(count) for count in count_list.split(",")[:-1]])
+          self.counts.append([[float(data) for data in count.split(",")[:-1]] for count in count_list.split("|")[:-1]])
 
   def plot_data(self):
-    fig, ax = plt.subplots(2, 1)
-
     n_counts = np.array(self.counts, np.float32)
     normalised_counts = n_counts / n_counts[:, 0][:, np.newaxis]
 
-    # Plots power for each wavelength
-    ax[0].plot(self.wavelengths, normalised_counts, "rx")
-    ax[0].set_xlabel("Wavelength (nm)")
-    ax[0].set_ylabel("Average Count")
+    fig, ax = plt.subplots(2, len(self.blocks))
+    for i in range(len(self.blocks)):
+      # Plots power for each wavelength
+      ax[0, i].plot(self.wavelengths, normalised_counts[:,:,i], "rx")
+      ax[0, i].set_xlabel("Wavelength (nm)")
+      ax[0, i].set_ylabel("Average Count")
 
-    # Plots power as it changes with time
-    # Each row corresponds to each time, hence must transpose array
-    plots = ax[1].plot(np.array(self.times) / 60, normalised_counts.T)
-    ax[1].legend(iter(plots), self.wavelengths)
-    ax[1].set_xlabel("Time (minute)")
-    ax[1].set_ylabel("Average Count")
+      # Plots power as it changes with time
+      # Each row corresponds to each time, hence must transpose array
+      plots = ax[1].plot(np.array(self.times) / 60, normalised_counts[:,:,i].T)
+      ax[1, i].legend(iter(plots), self.wavelengths)
+      ax[1, i].set_xlabel("Time (minute)")
+      ax[1, i].set_ylabel("Average Count")
 
     plt.show()
 
