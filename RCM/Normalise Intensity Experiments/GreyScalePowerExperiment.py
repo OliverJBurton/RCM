@@ -11,16 +11,20 @@ class GreyScalePowerExperiment(ExperimentGUI.ExperimentGUI):
   :param step: the interval between greyscale values wherein measurements are taken
   '''
 
-  def __init__(self, file_name="greyscale_power_readings.txt", current_mA=100, do_plot=True):
-    super().__init__(file_name=file_name, greyscale=0, current_mA=current_mA, do_plot=do_plot)
+  def __init__(self, file_name="greyscale_power_readings.txt", current_mA=100, do_plot=True, use_stored_data=False):
+    super().__init__(file_name=file_name, greyscale=0, current_mA=current_mA, do_plot=do_plot, use_stored_data=use_stored_data)
 
     # Greyscale power experiment parameters
     self.greyscale_power_readings = []
 
-    # Creates a daemon thread for the greyscale power experiment to run in the background
-    self.greyscale_power_experiment_thread = Thread(target=self.greyscale_power_experiment, daemon=True)
+    if not use_stored_data:
 
-    self.after(self.refresh_rate_ms, self.call_handler)
+      # Creates a daemon thread for the greyscale power experiment to run in the background
+      self.greyscale_power_experiment_thread = Thread(target=self.greyscale_power_experiment, daemon=True)
+
+      self.after(self.refresh_rate_ms, self.call_handler)
+    else:
+      self.end_experiment()
 
   def set_greyscale(self, greyscale):
     '''
