@@ -3,7 +3,8 @@ from PIL import Image
 import numpy as np
 import re
 import matplotlib.pyplot as plt
-sys.path.append("RCM/Normalise Intensity Experiments/")
+import sys
+sys.path.append("C:\\Users\\whw29\\Desktop\\RCM\\RCM\\Normalise Intensity Experiments")
 from GreyScalePowerExperiment import GreyScalePowerExperiment
 from PixelPowerExperiment import PixelPowerExperiment
 
@@ -16,14 +17,13 @@ Assumes GreyScalePowerExperiment and PixelPowerExperiment have been executed and
 
 class AveragePowerOverTimeAndWavelength:
 
-  def __init__(self, image_folder, processed_image_folder):
+  def __init__(self, image_folder):
     self.image_folder = image_folder
-    self.processed_image_folder = processed_image_folder
-    self.greyscale_power_table, a, b = GreyScalePowerExperiment().plot_and_fit_greyscale_power()
-    self.f_x_y = PixelPowerExperiment().interpolate_data()
+    self.greyscale_power_table, a, b = GreyScalePowerExperiment(file_name="C:\\Users\\whw29\\Desktop\\RCM\\RCM\\Normalise Intensity Experiments\\greyscale_power_readings.txt").plot_and_fit_greyscale_power()
+    self.f_x_y = PixelPowerExperiment(file_name="C:\\Users\\whw29\\Desktop\\RCM\\RCM\\Normalise Intensity Experiments\\pixel_power_readings.txt").interpolate_data()
     self.time, self.average_power_dict = self.get_average_power()
   
-  def _natural_key(string_):
+  def _natural_key(self, string_):
     """See https://blog.codinghorror.com/sorting-for-humans-natural-sort-order/"""
     return [int(s) if s.isdigit() else s for s in re.split(r'(\d+)', string_)]
   
@@ -41,13 +41,13 @@ class AveragePowerOverTimeAndWavelength:
     average_power_dict = {}
     for filename in image_path_list:
       whole_array = np.asarray(Image.open(filename))
-      cut_array = whole_img[400:800,400:800] # Probably gonna be more complex
-      power_array = np.vectorise(self.greyscale_power_table.get)(cut_array / self.f_x_y[400:800, 400:800])
+      cut_array = whole_array[3779:4096,431:1298] # Probably gonna be more complex
+      power_array = np.vectorize(self.greyscale_power_table.get)(cut_array / self.f_x_y[3779:4096,431:1298])
 
       # Check wavelength of file, if not seen before, add it to the dictionary
       # Creats dictionary of lists of averages of greyscale 
-      wavelength = int(filename.split("_")[3])
-      if wavelength not in time_average_dict.keys():
+      wavelength = float(filename.split("_")[3])
+      if wavelength not in average_power_dict.keys():
         average_power_dict[wavelength] = [power_array / power_array.size]
       else:
         average_power_dict[wavelength].append(power_array / power_array.size)
@@ -55,7 +55,7 @@ class AveragePowerOverTimeAndWavelength:
     return time, average_power_dict
   
   def plot_data(self):
-    fig, ax = plt.subplot(2, 1)
+    fig, ax = plt.subplots(2, 1)
 
     # Plots power for each wavelength
     ax[0].plot(self.average_power_dict.keys(), np.array(self.average_power_dict.items()), "rx")
@@ -71,5 +71,7 @@ class AveragePowerOverTimeAndWavelength:
 
     plt.show()
 
+if __name__ == "__main__":
+  experiment = AveragePowerOverTimeAndWavelength(image_folder="C:\\Users\\whw29\\Desktop\\Images")
 
 
