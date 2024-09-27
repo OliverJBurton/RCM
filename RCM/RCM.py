@@ -31,7 +31,7 @@ class FullControlMicroscope:
         print('LC connecting...')
         self.lcf.open()
         print('LC connected')
-        self.image_processing = AveragePowerOverTimeAndWavelength(image_folder=save_folder, thread_sleep_time=1)
+        self.image_processing = AveragePowerOverTimeAndWavelength(image_folder=save_folder, thread_sleep_time=120, save_file="C:\\Users\\whw29\\Desktop\\RCM\\Image Processing\\average_power_Au3.txt")
 
         self.sta = Controller(which_port='COM4',
                               stages=('ZFM2030', 'ZFM2030', 'ZFM2030'),

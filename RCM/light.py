@@ -66,8 +66,8 @@ class DC2200:
 if __name__ == '__main__':
     print('connecting')
     light = DC2200()
-    light.set_current_mA(1200)
+    light.set_current_mA(500)
     light.on()
-    time.sleep(5)
+    # time.sleep(5)
     light.off()
-    light.close()
+    # light.close()
