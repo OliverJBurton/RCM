@@ -4,6 +4,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import time
 
+"""
+
+"""
+
 class GreyScalePowerExperiment(ExperimentGUI.ExperimentGUI):
   '''
   Determine the relationship between power of light on the sample with respect to the greyscale of the image taken by the camera

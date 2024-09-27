@@ -8,6 +8,16 @@ from matplotlib.ticker import LinearLocator
 import time
 from PIL import Image, ImageTk
 
+"""
+Used in PixelPowerDetermination to obtain the normalisation factor f_x_y
+
+Not likely to be used on its own but if necessary, usage example:
+experiment = PixelPowerExperiment(image_path="C:\\Users\\whw29\\Desktop\\test2.png", file_name="pixel_power_test.txt")
+experiment.pixel_power_experiment_thread.start()
+experiment.mainloop()
+
+"""
+
 class PixelPowerExperiment(ExperimentGUI.ExperimentGUI):
   '''
   Determines how much light power each pixel contributes to the sample

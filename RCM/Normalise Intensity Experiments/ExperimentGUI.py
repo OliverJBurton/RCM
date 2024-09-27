@@ -10,6 +10,17 @@ from queue import Empty, Queue
 import tkinter as tk
 import numpy as np
 
+"""
+ExperimentGUI is the parent class that the experimental GUIs like GreyscalePowerExperiment and PixelPowerExperiment inherit from
+_CallData encapsulates data pushed onto the queue
+The queue is regularly checked by the main thread and any functions in the queue are executed 
+
+In method activate_full_screen(), may need to change line:
+  self.geometry('%dx%d%+d+%d'%(self.exp_screen_res[0], self.exp_screen_res[1], 0, 0))
+to:
+  self.geometry('%dx%d%+d+%d'%(self.exp_screen_res[0], self.exp_screen_res[1], -self.winfo_screenwidth(), 0))
+if the projector screen is not copied from the main screen and so the screen needs to be moved to the third monitor to be projected
+"""
 
 class _CallData:
   '''
