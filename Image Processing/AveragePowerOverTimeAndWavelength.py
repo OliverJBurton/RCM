@@ -267,8 +267,9 @@ class AveragePowerOverTimeAndWavelength:
     num_blocks = len(self.blocks)
 
     for i in range(num_blocks):
-      max_index = np.argmax(n_counts[:,-1,i])
-      plt.plot(np.array(self.times) / 60, n_counts[max_index,:,i])
+      max_index = np.argmin(n_counts[:,:,i], axis=0)
+      max_wavelength_over_time = [self.wavelengths[index] for index in max_index]
+      plt.plot(np.array(self.times) / 60, max_wavelength_over_time, "x")
     plt.legend(np.arange(num_blocks))
     plt.xlabel("Time (minutes)")
     plt.ylabel("Max average Normalised Count")
@@ -285,3 +286,4 @@ if __name__ == "__main__":
   processing = AveragePowerOverTimeAndWavelength(save_file="/Users/edwardwei/Documents/RCM/Image Processing/average_power_Au2.txt")
   processing.retrieve_data()
   processing.plot_peak_wavelength_over_time()
+  # processing.plot_blocks_over_time_at_wavelength(583.0)
