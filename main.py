@@ -14,7 +14,6 @@ import time  # For time delays and time management
 import os  # For file and directory operations
 import cv2  # OpenCV for image processing
 import imageio  # For writing image files
-from ocean_spectrometer import Ocean_Spectrometer  # Import the Ocean Optic spectrometer class
 
 
 
@@ -242,11 +241,13 @@ if __name__ == '__main__':
 
     The script initializes the microscope, acquires a datacube, and then closes the connection to the peripherals.
     """
+
+    fo = r'D:\OB303\data\2025_20250121AuMix_LAP3_CKMYborder_v2'
     # Initialize the FullControlMicroscope class
     msc = FullControlMicroscope()
 
     # Acquire a hyperspectral datacube
-    msc.aquire_HS_datacube()
+    msc.aquire_HS_time_series(wavelength_range=[450, 720], no_spectra=21, exposuretime=100e-3, save_folder=fo, time_increment=150, total_time=10000000)
 
     # Close all devices and peripherals
     msc.close()
