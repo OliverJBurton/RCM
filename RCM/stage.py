@@ -373,7 +373,7 @@ if __name__ == '__main__':
     and checks stage positions. Finally, the device connection is closed.
     """
     channel = 0
-    controller = Controller(which_port='COM4',
+    controller = Controller(which_port='COM3',
                             stages=('ZFM2030', 'ZFM2030', 'ZFM2030'),
                             reverse=(False, False, True),
                             verbose=True,
