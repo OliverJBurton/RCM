@@ -7,7 +7,7 @@ import numpy as np  # For array handling and numerical computations
 import matplotlib.pyplot as plt  # For plotting images and graphs
 from camera import Camera_HS  # High-speed camera interface
 from camera import Camera_BA  # Baseline camera interface
-from light import DC2200  # LED controller interface
+# from light import DC2200  # LED controller interface
 from stage import Controller  # Stage controller interface
 from tunablefilter import TunableFilter  # Tunable filter control interface
 import time  # For time delays and time management
@@ -41,8 +41,8 @@ class FullControlMicroscope:
         # print('TL camera connected')
 
         # Initialize the LED light source
-        self.led = DC2200()
-        print('LS connected')
+        #self.led = DC2200()
+       # print('LS connected')
 
         # Initialize the motorized stage, connecting to the specified COM port
         self.sta = Controller(which_port='COM4',
@@ -66,7 +66,7 @@ class FullControlMicroscope:
         """
         self.chs.close()  # Close the high-speed camera
         # self.cba.close()  # Uncomment to close the Baseline camera if used
-        self.led.close()  # Close the LED controller
+        # self.led.close()  # Close the LED controller
         self.sta.close()  # Close the motorized stage
         self.lcf.close()  # Close the tunable filter
 
@@ -103,10 +103,10 @@ class FullControlMicroscope:
         if save_folder == []:
             return wavelengths, hypercube
         else:
-            for ii, wl in enumerate(wavelengths):
+            for index, wl in enumerate(wavelengths):
                 # Save each captured image to the specified folder
-                fn = os.path.join(save_folder, f'image_cap_{ii:04d}_{wl}_img.png')
-                imageio.imwrite(fn, hypercube[ii].astype(np.uint16))  # Save image as 16-bit PNG
+                fn = os.path.join(save_folder, f'image_cap_{index:04d}_{wl}_img.png')
+                imageio.imwrite(fn, hypercube[index].astype(np.uint16))  # Save image as 16-bit PNG
 
     def aquire_HS_time_series(self, wavelength_range=[420, 730], no_spectra=5, exposuretime=[], save_folder=[], time_increment=10, total_time=7200):
         """
@@ -122,38 +122,31 @@ class FullControlMicroscope:
 
         This function captures data at regular time intervals, saving the captured images in the specified folder.
         """
+
         t0 = time.time()  # Start time
         ti = time.time()  # Current time
         n = 0  # Counter for time steps
-
+        
         # Loop until the total time is reached
-        while ti - t0 < total_time:
-            time.sleep(1e-3)  # Small delay to avoid excessive CPU usage
-            ti = time.time()  # Update current time
+        while ti - t0 < total_time + 1: # one second added to capture image(s) at final time
 
-            # Initial immediate capture
-            if n==0:
-                # Acquire hyperspectral datacube
-                wavelengths, hypercube = self.aquire_HS_datacube(wavelength_range=wavelength_range, no_spectra=no_spectra, exposuretime=exposuretime, save_folder=[])
-
-                # Save each captured image
-                for ii, wl in enumerate(wavelengths):
-                    fn = os.path.join(save_folder, f'image_cap_{n:04d}_{wl}_{ti - t0:.2f}_img.png')
-                    imageio.imwrite(fn, hypercube[ii].astype(np.uint16))  # Save image as 16-bit PNG
-
-                n += 1  # Increment the time step counter
+            # compute time since last acquisition sequence
+            time_since_last_acquisition = ti - (n - 1) * time_increment - t0
 
             # Capture data at each time increment
-            if ti - t0 > time_increment:
+            if time_since_last_acquisition > time_increment or n == 0:
                 # Acquire hyperspectral datacube
                 wavelengths, hypercube = self.aquire_HS_datacube(wavelength_range=wavelength_range, no_spectra=no_spectra, exposuretime=exposuretime, save_folder=[])
 
                 # Save each captured image
-                for ii, wl in enumerate(wavelengths):
+                for index, wl in enumerate(wavelengths):
                     fn = os.path.join(save_folder, f'image_cap_{n:04d}_{wl}_{ti - t0:.2f}_img.png')
-                    imageio.imwrite(fn, hypercube[ii].astype(np.uint16))  # Save image as 16-bit PNG
+                    imageio.imwrite(fn, hypercube[index].astype(np.uint16))  # Save image as 16-bit PNG
 
-                n += 1  # Increment the time step counter
+                n += 1  # Increment the time increment counter
+            
+            time.sleep(1e-3) # Small delay to avoid excessive CPU usage
+            ti = time.time() # Update current time
 
     def aquire_single_spec_vis(self, exposure_time_Us=100000, num_average=5):
         """
@@ -242,12 +235,15 @@ if __name__ == '__main__':
     The script initializes the microscope, acquires a datacube, and then closes the connection to the peripherals.
     """
 
-    fo = r'D:\OB303\data\2025_20250121AuMix_LAP3_CKMYborder_v2'
+    fo = r'd:\sm2970\New folder2'
     # Initialize the FullControlMicroscope class
     msc = FullControlMicroscope()
 
     # Acquire a hyperspectral datacube
-    msc.aquire_HS_time_series(wavelength_range=[450, 720], no_spectra=21, exposuretime=100e-3, save_folder=fo, time_increment=150, total_time=10000000)
+    msc.aquire_HS_time_series(wavelength_range=[450, 720], no_spectra=5, exposuretime=400e-3, save_folder=fo, time_increment=60, total_time=180)
+   # msc.aquire_HS_datacube(wavelength_range=[420,730], no_spectra=5, exposuretime=100e-3, save_folder=fo)
+    # msc.aquire_HS_time_series(wavelength_range=[450, 720], no_spectra=5, exposuretime=100e-3, save_folder=fo, time_increment=2, total_time=10)
+
 
     # Close all devices and peripherals
     msc.close()
